@@ -12,6 +12,7 @@ class ExerciseBase(BaseModel):
     name: str
     description: str
     body_part: str
+    general_part: str
 
 
 class ExerciseCreate(ExerciseBase):
