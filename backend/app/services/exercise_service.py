@@ -13,3 +13,7 @@ from app.models.exercise import Exercise
 
 def list_exercises(db: Session) -> list[Exercise]:
     return list(db.scalars(select(Exercise).order_by(Exercise.id)))
+
+
+def get_exercise(db: Session, exercise_id: int) -> Exercise | None:
+    return db.get(Exercise, exercise_id)  # primary-key lookup, no query needed

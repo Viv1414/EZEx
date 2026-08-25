@@ -7,6 +7,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.injury import InjuryWithEffectiveness
+
 
 # common among both creating and reading
 
@@ -33,3 +35,11 @@ class ExerciseWithEffectiveness(ExerciseRead):
     used when returning exercises in the context of "exercises for X injury"."""
 
     effectiveness: int
+
+
+class ExerciseDetail(ExerciseRead):
+    """The single-exercise page's data -- ExerciseRead plus every injury
+    this exercise helps with. Richer content (video, equipment,
+    instructions, etc. -- see ROADMAP.md) isn't modeled yet."""
+
+    injuries: list[InjuryWithEffectiveness]
