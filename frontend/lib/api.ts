@@ -27,6 +27,24 @@ export async function getExercise(exerciseId: number): Promise<ExerciseDetail | 
   return res.json();
 }
 
+export async function getGeneralParts(): Promise<string[]> {
+  const res = await fetch(`${API_URL}/exercises/general-parts`, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch general parts: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function getExercisesByGeneralPart(generalPart: string): Promise<Exercise[]> {
+  const res = await fetch(`${API_URL}/exercises?general_part=${encodeURIComponent(generalPart)}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch exercises for general part ${generalPart}: ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function getInjuries(): Promise<Injury[]> {
   const res = await fetch(`${API_URL}/injuries`, { cache: "no-store" });
   if (!res.ok) {

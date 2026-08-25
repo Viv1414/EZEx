@@ -1,7 +1,11 @@
-import { getExercises, getInjuries } from "@/lib/api";
+import { getExercises, getGeneralParts, getInjuries } from "@/lib/api";
 
 export default async function Home() {
-  const [exercises, injuries] = await Promise.all([getExercises(), getInjuries()]);
+  const [exercises, injuries, generalParts] = await Promise.all([
+    getExercises(),
+    getInjuries(),
+    getGeneralParts(),
+  ]);
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-16">
@@ -9,17 +13,41 @@ export default async function Home() {
         Exercises
       </h1>
 
+      {generalParts.length > 0 && (
+        <div className="mt-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+            Collections
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {generalParts.map((part) => (
+              <a
+                key={part}
+                href={`/collections/${encodeURIComponent(part)}`}
+                className="rounded-full border border-zinc-200 px-3 py-1 text-sm capitalize text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
+              >
+                {part}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
       {injuries.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {injuries.map((injury) => (
-            <a
-              key={injury.id}
-              href={`/injuries/${injury.id}`}
-              className="rounded-full border border-zinc-200 px-3 py-1 text-sm capitalize text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
-            >
-              {injury.name}
-            </a>
-          ))}
+        <div className="mt-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+            By injury
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {injuries.map((injury) => (
+              <a
+                key={injury.id}
+                href={`/injuries/${injury.id}`}
+                className="rounded-full border border-zinc-200 px-3 py-1 text-sm capitalize text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
+              >
+                {injury.name}
+              </a>
+            ))}
+          </div>
         </div>
       )}
 

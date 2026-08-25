@@ -15,8 +15,16 @@ router = APIRouter(prefix="/exercises", tags=["exercises"])
 # FastAPI then uses the response_model to serialize the data into the desired output format - ExerciseRead from schemas
 
 @router.get("", response_model=list[ExerciseRead]) # GET /exercises using services/exercise_service.py in ExerciseRead format (schemas)
-def get_exercises(db: Session = Depends(get_db)):
-    return exercise_service.list_exercises(db)
+def get_exercises(general_part: str | None = None, db: Session = Depends(get_db)):
+    return exercise_service.list_exercises(db, general_part=general_part)
+
+
+# Registered before /{exercise_id} on purpose -- otherwise FastAPI would try
+# to match "general-parts" as an exercise_id (an int) and fail validation
+# instead of ever reaching this route.
+@router.get("/general-parts", response_model=list[str])
+def get_general_parts(db: Session = Depends(get_db)):
+    return exercise_service.list_general_parts(db)
 
 
 @router.get("/{exercise_id}", response_model=ExerciseDetail)
