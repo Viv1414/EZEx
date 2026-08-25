@@ -8,6 +8,11 @@ from app.services import exercise_service
 router = APIRouter(prefix="/exercises", tags=["exercises"])
 
 
-@router.get("", response_model=list[ExerciseRead])
+# for when a GET call happens
+# services provide the query to get all the exercises as raw objects (defined by models.py - defines row format)
+# the below return statement simply calls that services function to retrieve the data
+# FastAPI then uses the response_model to serialize the data into the desired output format - ExerciseRead from schemas
+
+@router.get("", response_model=list[ExerciseRead]) # GET /exercises using services/exercise_service.py in ExerciseRead format (schemas)
 def get_exercises(db: Session = Depends(get_db)):
     return exercise_service.list_exercises(db)

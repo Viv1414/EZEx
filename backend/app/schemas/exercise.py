@@ -8,6 +8,8 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 
+# common among both creating and reading
+
 class ExerciseBase(BaseModel):
     name: str
     description: str

@@ -6,7 +6,10 @@ services:
       POSTGRES_PASSWORD: ezpt
       POSTGRES_DB: ezpt
     ports:
-      - "5432:5432"
+      # host port 5433, not 5432 -- 5432 is already taken by another
+      # project's Postgres container. Internal container port stays 5432,
+      # so backend's DATABASE_URL (which talks container-to-container) is unaffected.
+      - "5433:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
 
@@ -21,6 +24,24 @@ services:
     depends_on:
       - db
 
+  frontend:
+    build: ./frontend
+    environment:
+      # server-side code (this Server Component's fetch) runs inside this
+      # container, so it must reach the backend via Docker's internal
+      # network name, not "localhost" -- see lib/api.ts
+      API_URL: http://backend:8000
+      # anything that runs in the *browser* instead (client components)
+      # needs the host-mapped address, since the browser is outside Docker
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - backend
+
 volumes:
   db_data:
-# frontend service gets added here once the Next.js app is scaffolded
