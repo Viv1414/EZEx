@@ -11,7 +11,7 @@ guessing the wrong shape now is not.
 from datetime import datetime
 
 from sqlalchemy import DateTime, String, Text, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
@@ -28,3 +28,5 @@ class Exercise(Base):
     # a proper lookup table once symptom/injury search is designed.
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    injury_links: Mapped[list["ExerciseInjury"]] = relationship(back_populates="exercise")

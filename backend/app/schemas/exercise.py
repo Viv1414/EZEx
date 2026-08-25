@@ -26,3 +26,10 @@ class ExerciseRead(ExerciseBase):
 
     id: int
     created_at: datetime
+
+
+class ExerciseWithEffectiveness(ExerciseRead):
+    """ExerciseRead plus the effectiveness rating for one specific injury --
+    used when returning exercises in the context of "exercises for X injury"."""
+
+    effectiveness: int
