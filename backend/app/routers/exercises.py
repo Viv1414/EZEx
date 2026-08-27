@@ -38,4 +38,16 @@ def get_exercise(exercise_id: int, db: Session = Depends(get_db)):
         {**InjuryRead.model_validate(link.injury).model_dump(), "effectiveness": link.effectiveness}
         for link in links
     ]
-    return {**ExerciseRead.model_validate(exercise).model_dump(), "injuries": injuries}
+    return {
+        **ExerciseRead.model_validate(exercise).model_dump(),
+        "injuries": injuries,
+        "video_url": exercise.video_url,
+        "diagram_url": exercise.diagram_url,
+        "frequency": exercise.frequency,
+        "equipment": exercise.equipment,
+        "instructions": exercise.instructions,
+        "common_mistakes": exercise.common_mistakes,
+        "modification_beginner": exercise.modification_beginner,
+        "modification_intermediate": exercise.modification_intermediate,
+        "modification_advanced": exercise.modification_advanced,
+    }

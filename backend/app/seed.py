@@ -20,17 +20,32 @@ def run():
         db.query(Injury).delete()
         db.query(Exercise).delete()
 
+        # Fully filled in -- exercises every content field to check rendering.
         heel_slides = Exercise(
             name="Heel Slides",
-            description="Lying on your back, slide your heel toward your glutes, bending the knee, then slide it back out.",
             body_part="knee",
             general_part="leg",
+            video_url="https://example.com/videos/heel-slides.mp4",
+            diagram_url="https://example.com/diagrams/knee.png",
+            frequency="3 sets of 10, twice daily",
+            equipment=["Yoga mat"],
+            instructions=[
+                "Lie on your back with both legs extended.",
+                "Slowly slide one heel toward your glutes, bending the knee.",
+                "Slide the heel back out to the starting position.",
+            ],
+            common_mistakes=["Letting the lower back arch off the floor."],
+            modification_beginner="Use a towel under the heel to reduce friction.",
+            modification_intermediate="No modification needed.",
+            modification_advanced="Add ankle weights for extra resistance.",
         )
+        # Left mostly empty on purpose -- checks that missing content
+        # (None / empty list) renders fine, not just the fully filled case.
         ankle_alphabet = Exercise(
             name="Ankle Alphabet",
-            description="Trace each letter of the alphabet in the air with your big toe to move the ankle through its full range of motion.",
             body_part="ankle",
             general_part="leg",
+            instructions=["Trace each letter of the alphabet in the air with your big toe."],
         )
         db.add_all([heel_slides, ankle_alphabet])
         db.flush()  # assigns IDs without committing yet

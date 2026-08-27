@@ -14,7 +14,6 @@ from app.schemas.injury import InjuryWithEffectiveness
 
 class ExerciseBase(BaseModel):
     name: str
-    description: str
     body_part: str
     general_part: str
 
@@ -39,7 +38,19 @@ class ExerciseWithEffectiveness(ExerciseRead):
 
 class ExerciseDetail(ExerciseRead):
     """The single-exercise page's data -- ExerciseRead plus every injury
-    this exercise helps with. Richer content (video, equipment,
-    instructions, etc. -- see ROADMAP.md) isn't modeled yet."""
+    this exercise helps with, plus the richer content fields. These live
+    only here, not on ExerciseRead/ExerciseWithEffectiveness, since list
+    views (the homepage, a collection, an injury's exercise list) don't
+    need the full instructions/equipment payload for every row."""
 
     injuries: list[InjuryWithEffectiveness]
+
+    video_url: str | None
+    diagram_url: str | None
+    frequency: str | None
+    equipment: list[str]
+    instructions: list[str]
+    common_mistakes: list[str]
+    modification_beginner: str | None
+    modification_intermediate: str | None
+    modification_advanced: str | None

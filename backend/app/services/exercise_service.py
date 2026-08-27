@@ -20,17 +20,16 @@ def list_exercises(db: Session, general_part: str | None = None, q: str | None =
     if q is not None:
         pattern = f"%{q}%"  # ilike = case-insensitive LIKE
 
-        # Exercise doesn't have a direct injury_name column -- an exercise
-        # "matches by injury" if its id shows up among the exercise_ids
-        # linked to a matching Injury. This subquery (not a join) is what
-        # keeps each matching exercise appearing exactly once, instead of
-        # once per matching injury.
+
+        # essentially creates a list of exercise IDs that are matched to the injury
         matching_by_injury = (
             select(ExerciseInjury.exercise_id)
             .join(Injury, ExerciseInjury.injury_id == Injury.id)
             .where(Injury.name.ilike(pattern))
         )
 
+        # checks if query matches exercise name, body part, 
+        # general part, or exercise is in matching_by_injury list of exercises
         stmt = stmt.where(
             or_(
                 Exercise.name.ilike(pattern),
