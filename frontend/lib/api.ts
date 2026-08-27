@@ -6,8 +6,9 @@ import { ExerciseWithEffectiveness, Injury } from "@/types/injury";
 // where frontend and backend both really are on localhost.
 const API_URL = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-export async function getExercises(): Promise<Exercise[]> {
-  const res = await fetch(`${API_URL}/exercises`, { cache: "no-store" });
+export async function getExercises(q?: string): Promise<Exercise[]> {
+  const url = q ? `${API_URL}/exercises?q=${encodeURIComponent(q)}` : `${API_URL}/exercises`;
+  const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) {
     throw new Error(`Failed to fetch exercises: ${res.status}`);
   }

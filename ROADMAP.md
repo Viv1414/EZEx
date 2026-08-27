@@ -1,10 +1,25 @@
 # ezpt — backlog / not-yet-built
 
 Captured ideas that are intentionally deferred, so they don't get lost.
-Nothing below is built yet.
+Items are ✅ once built; everything else below is still not built.
+
+## Done (technical summary)
+- Injury/symptom relationship (Exercise <-> Injury, effectiveness 1-5 per pairing)
+- GET /exercises, /exercises/{id}, /exercises/general-parts, /injuries, /injuries/{id}/exercises
+- Search (`GET /exercises?q=`): matches name, body_part, general_part, and linked injury names
+- Collections by general_part + by injury, exercise detail page, homepage
+
+## Data integrity (not enforced yet)
+- Every exercise should have >=1 linked injury -- otherwise there's no way
+  to surface it (an exercise is only reachable via search or a collection/
+  injury browse page right now). Not a bug today since only seed.py creates
+  exercises and it always links injuries -- becomes a real concern once
+  POST /exercises exists. Add validation then (reject create/update if the
+  injuries list is empty), rather than a DB constraint (hard to express
+  "must have >=1 related row" in plain SQL without a trigger).
 
 ## Exercise model — richer content
-- Injury/symptom relationship: an Exercise can help with multiple Injuries,
+- ✅ Injury/symptom relationship: an Exercise can help with multiple Injuries,
   and each Exercise-Injury pairing has its own effectiveness rating (1-5).
   e.g. "Heel Slides" -> ankle sprain: 4/5, shin splints: 2/5.
   (Needs its own design pass -- this isn't a plain many-to-many, since the
@@ -21,7 +36,7 @@ Nothing below is built yet.
 - POST /exercises (create) — deferred until the model shape above is settled
 
 ## Exercise detail page (from wireframes, 2026-08-25)
-- List of injuries this exercise helps with + effectiveness rating for each
+- ✅ List of injuries this exercise helps with + effectiveness rating for each
   (same Injury/effectiveness relationship as above)
 - "Add to program" button
 - Scrollable related-exercises section at the bottom
@@ -33,8 +48,8 @@ Nothing below is built yet.
 
 ## Dashboard (from wireframes, 2026-08-25)
 - "Your Programs" row (user's active programs, plus an "add" tile)
-- Search bar for finding a specific exercise directly
-- "Collections" section below the fold, grouped by body part and/or injury
+- ✅ Search bar for finding a specific exercise directly
+- ✅ "Collections" section below the fold, grouped by body part and/or injury
 - Sidebar (hamburger menu) — contents not decided yet
 - Profile button — implies account settings, which needs auth first
 

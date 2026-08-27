@@ -15,8 +15,8 @@ router = APIRouter(prefix="/exercises", tags=["exercises"])
 # FastAPI then uses the response_model to serialize the data into the desired output format - ExerciseRead from schemas
 
 @router.get("", response_model=list[ExerciseRead]) # GET /exercises using services/exercise_service.py in ExerciseRead format (schemas)
-def get_exercises(general_part: str | None = None, db: Session = Depends(get_db)):
-    return exercise_service.list_exercises(db, general_part=general_part)
+def get_exercises(general_part: str | None = None, q: str | None = None, db: Session = Depends(get_db)):
+    return exercise_service.list_exercises(db, general_part=general_part, q=q)
 
 
 # Registered before /{exercise_id} on purpose -- otherwise FastAPI would try
