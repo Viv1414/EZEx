@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { getExercise } from "@/lib/api";
+import { getAuthCookieHeader } from "@/lib/server-auth";
 
 export default async function ExercisePage({
   params,
@@ -8,7 +9,8 @@ export default async function ExercisePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const exercise = await getExercise(Number(id));
+  const cookieHeader = await getAuthCookieHeader();
+  const exercise = await getExercise(Number(id), cookieHeader);
 
   if (!exercise) {
     notFound();
@@ -22,7 +24,7 @@ export default async function ExercisePage({
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-16">
-      <a href="/" className="text-sm text-zinc-500 hover:underline">
+      <a href="/dashboard" className="text-sm text-zinc-500 hover:underline">
         &larr; All exercises
       </a>
       <h1 className="mt-2 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">

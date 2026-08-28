@@ -1,4 +1,5 @@
 import { getExercisesByGeneralPart } from "@/lib/api";
+import { getAuthCookieHeader } from "@/lib/server-auth";
 
 export default async function CollectionPage({
   params,
@@ -7,11 +8,12 @@ export default async function CollectionPage({
 }) {
   const { part } = await params;
   const generalPart = decodeURIComponent(part);
-  const exercises = await getExercisesByGeneralPart(generalPart);
+  const cookieHeader = await getAuthCookieHeader();
+  const exercises = await getExercisesByGeneralPart(generalPart, cookieHeader);
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-16">
-      <a href="/" className="text-sm text-zinc-500 hover:underline">
+      <a href="/dashboard" className="text-sm text-zinc-500 hover:underline">
         &larr; All exercises
       </a>
       <h1 className="mt-2 text-2xl font-semibold capitalize text-zinc-900 dark:text-zinc-50">

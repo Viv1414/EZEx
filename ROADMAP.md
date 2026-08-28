@@ -25,7 +25,19 @@ Items are ✅ once built; everything else below is still not built.
   Fix later with either a short-lived token + refresh-token flow, or a
   server-side revocation list -- more machinery than a first pass needs.
 - Email verification, password reset -- not built
-- Frontend signup/login forms (first real Client Components in the app)
+- ✅ Frontend signup/login forms (first real Client Components in the app)
+- ✅ Site gated behind login (frontend/middleware.ts): "/" is now a public
+  placeholder landing page, everything else (including /dashboard) redirects
+  there if the access_token cookie is missing.
+- ✅ Backend API itself now requires login too (all 5 GET /exercises*,
+  /injuries* endpoints have Depends(get_current_user)) -- no longer
+  bypassable via curl/Postman. Server Components forward the browser's
+  cookie manually via lib/server-auth.ts's getAuthCookieHeader()
+  (next/headers' cookies()), passed into each lib/api.ts call.
+- ⚠️ Still true: the middleware gate itself only checks cookie *presence*,
+  not signature/expiry -- an expired-but-present cookie gets past
+  middleware, then the actual data fetch 401s and the page throws an
+  unhandled error instead of a clean redirect to /login. Minor, not fixed yet.
 
 ## Data integrity (not enforced yet)
 - Every exercise should have >=1 linked injury -- otherwise there's no way

@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.deps import get_current_user
+from app.models.user import User
 from app.schemas.exercise import ExerciseDetail, ExerciseRead
 from app.schemas.injury import InjuryRead
 from app.services import exercise_service, injury_service
@@ -15,7 +17,12 @@ router = APIRouter(prefix="/exercises", tags=["exercises"])
 # FastAPI then uses the response_model to serialize the data into the desired output format - ExerciseRead from schemas
 
 @router.get("", response_model=list[ExerciseRead]) # GET /exercises using services/exercise_service.py in ExerciseRead format (schemas)
-def get_exercises(general_part: str | None = None, q: str | None = None, db: Session = Depends(get_db)):
+def get_exercises(
+    general_part: str | None = None,
+    q: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     return exercise_service.list_exercises(db, general_part=general_part, q=q)
 
 
@@ -23,12 +30,16 @@ def get_exercises(general_part: str | None = None, q: str | None = None, db: Ses
 # to match "general-parts" as an exercise_id (an int) and fail validation
 # instead of ever reaching this route.
 @router.get("/general-parts", response_model=list[str])
-def get_general_parts(db: Session = Depends(get_db)):
+def get_general_parts(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     return exercise_service.list_general_parts(db)
 
 
 @router.get("/{exercise_id}", response_model=ExerciseDetail)
-def get_exercise(exercise_id: int, db: Session = Depends(get_db)):
+def get_exercise(
+    exercise_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     exercise = exercise_service.get_exercise(db, exercise_id)
     if exercise is None:
         raise HTTPException(status_code=404, detail="Exercise not found")

@@ -1,4 +1,5 @@
 import { getExercisesForInjury, getInjuries } from "@/lib/api";
+import { getAuthCookieHeader } from "@/lib/server-auth";
 
 export default async function InjuryPage({
   params,
@@ -7,17 +8,18 @@ export default async function InjuryPage({
 }) {
   const { id } = await params;
   const injuryId = Number(id);
+  const cookieHeader = await getAuthCookieHeader();
 
   // No GET /injuries/{id} endpoint yet -- find the name from the list instead.
   const [injuries, exercises] = await Promise.all([
-    getInjuries(),
-    getExercisesForInjury(injuryId),
+    getInjuries(cookieHeader),
+    getExercisesForInjury(injuryId, cookieHeader),
   ]);
   const injury = injuries.find((i) => i.id === injuryId);
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-16">
-      <a href="/" className="text-sm text-zinc-500 hover:underline">
+      <a href="/dashboard" className="text-sm text-zinc-500 hover:underline">
         &larr; All exercises
       </a>
       <h1 className="mt-2 text-2xl font-semibold capitalize text-zinc-900 dark:text-zinc-50">

@@ -7,9 +7,19 @@ import { User } from "@/types/user";
 // where frontend and backend both really are on localhost.
 const API_URL = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-export async function getExercises(q?: string): Promise<Exercise[]> {
+// These 6 functions hit endpoints that now require login (backend has
+// Depends(get_current_user) on them). Each takes an optional cookieHeader,
+// which the *caller* (a Server Component) gets from lib/server-auth.ts's
+// getAuthCookieHeader() -- this file can't call that itself (next/headers
+// isn't usable from client components, and this module is shared with
+// login/signup's client-side code).
+function authHeaders(cookieHeader?: string): HeadersInit {
+  return cookieHeader ? { Cookie: cookieHeader } : {};
+}
+
+export async function getExercises(q?: string, cookieHeader?: string): Promise<Exercise[]> {
   const url = q ? `${API_URL}/exercises?q=${encodeURIComponent(q)}` : `${API_URL}/exercises`;
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch(url, { cache: "no-store", headers: authHeaders(cookieHeader) });
   if (!res.ok) {
     throw new Error(`Failed to fetch exercises: ${res.status}`);
   }
@@ -18,8 +28,14 @@ export async function getExercises(q?: string): Promise<Exercise[]> {
 
 // Returns null for a 404 (exercise not found) instead of throwing, so the
 // page can render its own "not found" UI.
-export async function getExercise(exerciseId: number): Promise<ExerciseDetail | null> {
-  const res = await fetch(`${API_URL}/exercises/${exerciseId}`, { cache: "no-store" });
+export async function getExercise(
+  exerciseId: number,
+  cookieHeader?: string
+): Promise<ExerciseDetail | null> {
+  const res = await fetch(`${API_URL}/exercises/${exerciseId}`, {
+    cache: "no-store",
+    headers: authHeaders(cookieHeader),
+  });
   if (res.status === 404) {
     return null;
   }
@@ -29,17 +45,24 @@ export async function getExercise(exerciseId: number): Promise<ExerciseDetail | 
   return res.json();
 }
 
-export async function getGeneralParts(): Promise<string[]> {
-  const res = await fetch(`${API_URL}/exercises/general-parts`, { cache: "no-store" });
+export async function getGeneralParts(cookieHeader?: string): Promise<string[]> {
+  const res = await fetch(`${API_URL}/exercises/general-parts`, {
+    cache: "no-store",
+    headers: authHeaders(cookieHeader),
+  });
   if (!res.ok) {
     throw new Error(`Failed to fetch general parts: ${res.status}`);
   }
   return res.json();
 }
 
-export async function getExercisesByGeneralPart(generalPart: string): Promise<Exercise[]> {
+export async function getExercisesByGeneralPart(
+  generalPart: string,
+  cookieHeader?: string
+): Promise<Exercise[]> {
   const res = await fetch(`${API_URL}/exercises?general_part=${encodeURIComponent(generalPart)}`, {
     cache: "no-store",
+    headers: authHeaders(cookieHeader),
   });
   if (!res.ok) {
     throw new Error(`Failed to fetch exercises for general part ${generalPart}: ${res.status}`);
@@ -47,16 +70,25 @@ export async function getExercisesByGeneralPart(generalPart: string): Promise<Ex
   return res.json();
 }
 
-export async function getInjuries(): Promise<Injury[]> {
-  const res = await fetch(`${API_URL}/injuries`, { cache: "no-store" });
+export async function getInjuries(cookieHeader?: string): Promise<Injury[]> {
+  const res = await fetch(`${API_URL}/injuries`, {
+    cache: "no-store",
+    headers: authHeaders(cookieHeader),
+  });
   if (!res.ok) {
     throw new Error(`Failed to fetch injuries: ${res.status}`);
   }
   return res.json();
 }
 
-export async function getExercisesForInjury(injuryId: number): Promise<ExerciseWithEffectiveness[]> {
-  const res = await fetch(`${API_URL}/injuries/${injuryId}/exercises`, { cache: "no-store" });
+export async function getExercisesForInjury(
+  injuryId: number,
+  cookieHeader?: string
+): Promise<ExerciseWithEffectiveness[]> {
+  const res = await fetch(`${API_URL}/injuries/${injuryId}/exercises`, {
+    cache: "no-store",
+    headers: authHeaders(cookieHeader),
+  });
   if (!res.ok) {
     throw new Error(`Failed to fetch exercises for injury ${injuryId}: ${res.status}`);
   }
