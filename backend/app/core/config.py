@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     # CORS -- comma-separated list of allowed frontend origins
     cors_origins: str = "http://localhost:3000"
 
+    # Auth -- signs JWTs, so anyone with this value could forge a login.
+    # The default here is fine for local dev only; production MUST set a
+    # real secret via an env var, never commit one to the repo.
+    secret_key: str = "dev-only-insecure-secret-change-me"
+    access_token_expire_minutes: int = 60 * 24 * 7  # 1 week -- no refresh-token flow yet
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     @property

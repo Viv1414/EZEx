@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.routers import exercises, health, injuries
+from app.routers import auth, exercises, health, injuries
 
 app = FastAPI(title="ezpt API")
 
@@ -17,3 +17,4 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(exercises.router)
 app.include_router(injuries.router)
+app.include_router(auth.router)
