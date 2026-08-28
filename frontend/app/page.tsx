@@ -87,9 +87,6 @@ export default async function Home({
                 <p className="text-sm text-zinc-500">
                   {exercise.general_part} / {exercise.body_part}
                 </p>
-                <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
-                  {exercise.description}
-                </p>
               </a>
             </li>
           ))}
