@@ -36,7 +36,7 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await login(email, password);
-      window.location.href = "/dashboard"; // full reload -- see AuthStatus.tsx for why
+      window.location.href = "/dashboard"; // full reload -- see Header.tsx for why
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
       setSubmitting(false);

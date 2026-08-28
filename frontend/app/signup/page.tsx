@@ -35,7 +35,7 @@ export default function SignupPage() {
     try {
       await signup(email, password);
       await login(email, password); // auto-login right after signup
-      window.location.href = "/dashboard"; // full reload -- see AuthStatus.tsx for why
+      window.location.href = "/dashboard"; // full reload -- see Header.tsx for why
     } catch (err) {
       setError(err instanceof Error ? err.message : "Signup failed");
       setSubmitting(false);
