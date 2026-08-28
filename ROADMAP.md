@@ -39,6 +39,22 @@ Items are ✅ once built; everything else below is still not built.
   middleware, then the actual data fetch 401s and the page throws an
   unhandled error instead of a clean redirect to /login. Minor, not fixed yet.
 
+## Security hardening (2026-08-28)
+- ✅ SECRET_KEY: app now refuses to start if ENVIRONMENT=production and
+  SECRET_KEY is still the code's insecure default (core/config.py). Local
+  .env given a real generated secret instead of that default too.
+- ✅ Rate limiting (slowapi): /auth/login and /auth/signup limited to
+  5/minute per IP -- stops naive scripted brute-forcing/mass-signup.
+  IP detection (core/limiter.py) trusts X-Forwarded-For only in production
+  (assumes the hosting platform's proxy sets it itself, not a raw client).
+- ✅ Cookie SameSite fixed for split-domain deployment: "none" (+ Secure)
+  in production, "lax" locally -- see DEPLOYMENT.md for why "lax" would
+  have silently broken auth once frontend/backend are on different domains.
+- ✅ DEPLOYMENT.md created -- checklist for env vars, HTTPS, DB credentials,
+  and known gaps to revisit before real users arrive.
+- Header logo now goes to /dashboard when logged in, "/" when logged out
+  (components/Header.tsx, replaces the old AuthStatus.tsx).
+
 ## Data integrity (not enforced yet)
 - Every exercise should have >=1 linked injury -- otherwise there's no way
   to surface it (an exercise is only reachable via search or a collection/

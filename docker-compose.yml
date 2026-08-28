@@ -1,6 +1,10 @@
 services:
   db:
     image: postgres:16
+    # Local dev only -- this container is never reachable from outside your
+    # machine. Production will use a managed Postgres add-on (Railway/
+    # Render/Fly/etc.) instead of this service at all, with its own
+    # auto-generated credentials -- see DEPLOYMENT.md.
     environment:
       POSTGRES_USER: ezpt
       POSTGRES_PASSWORD: ezpt
