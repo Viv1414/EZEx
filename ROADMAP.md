@@ -12,7 +12,11 @@ Items are ✅ once built; everything else below is still not built.
   instructions, common_mistakes, modification_beginner/intermediate/advanced
   (`description` removed from the model -- instructions supersede it)
 - Auth: POST /auth/signup, /auth/login (httpOnly JWT cookie), /auth/logout,
-  GET /auth/me. Backend only -- no frontend signup/login forms yet.
+  GET /auth/me, plus frontend /signup and /login forms + header AuthStatus.
+
+## Known issues (deprioritized, 2026-08-28)
+- Login page: clicking "Log in" while an error is already showing causes
+  the button to visibly glitch. Not investigated yet.
 
 ## Auth follow-ups (not built yet)
 - "Logout" only clears the browser cookie -- the JWT itself isn't
