@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     # real secret via an env var, never commit one to the repo. The check
     # below makes forgetting that a startup crash instead of a silent hole.
     secret_key: str = "dev-only-insecure-secret-change-me"
-    access_token_expire_minutes: int = 60 * 24 * 7  # 1 week -- no refresh-token flow yet
+    access_token_expire_minutes: int = 60 * 24  # 1 day -- with revocation-on-logout, no refresh-token flow needed
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

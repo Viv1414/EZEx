@@ -19,11 +19,16 @@ Items are ✅ once built; everything else below is still not built.
   the button to visibly glitch. Not investigated yet.
 
 ## Auth follow-ups (not built yet)
-- "Logout" only clears the browser cookie -- the JWT itself isn't
-  invalidated server-side (stateless tokens have no revocation list).
-  A stolen token keeps working until it expires (currently 7 days).
-  Fix later with either a short-lived token + refresh-token flow, or a
-  server-side revocation list -- more machinery than a first pass needs.
+- ✅ Logout now actually revokes the specific token server-side (jti +
+  revoked_tokens table, checked in get_current_user) -- verified: the exact
+  same JWT that worked pre-logout returns 401 post-logout, even though it
+  hasn't naturally expired. A fresh login for the same user is unaffected
+  (only that one token is revoked, not all of a user's sessions).
+  Token lifetime also shortened from 7 days to 1 day.
+  Chose this over a full refresh-token flow (the other standard fix) since
+  it fully solves logout for realistic effort; refresh tokens additionally
+  protect a token that's stolen but never logged out of (shorter natural
+  lifetime) -- worth revisiting if that scenario becomes a real concern.
 - Email verification, password reset -- not built
 - ✅ Frontend signup/login forms (first real Client Components in the app)
 - ✅ Site gated behind login (frontend/middleware.ts): "/" is now a public
@@ -53,6 +58,23 @@ Items are ✅ once built; everything else below is still not built.
 - ✅ DEPLOYMENT.md created -- checklist for env vars, HTTPS, DB credentials,
   and known gaps to revisit before real users arrive.
 - Header logo now goes to /dashboard when logged in, "/" when logged out
+
+## 🔴 CSRF -- must build before Programs (or any other mutating endpoint), not after
+Fixing the cookie's SameSite for split-domain deployment (above) was necessary
+but has a side effect: `SameSite=lax` incidentally blocked cross-site form
+submissions/fetches, which is also what stops classic CSRF. `SameSite=none`
+(required once frontend/backend are on different domains) removes that
+protection. CORS does NOT cover this gap -- CORS only governs whether
+cross-origin JavaScript can *read a response*, not whether a plain HTML
+form can be submitted cross-site with cookies attached.
+- Low impact today: only /auth/login (login-CSRF) and /auth/logout exist
+  to target, neither very damaging.
+- High impact once Programs exist: a malicious page could silently
+  create/edit/delete a logged-in victim's program.
+- Fix: a CSRF token (e.g. double-submit cookie pattern, or a custom header
+  the backend requires on state-changing requests) checked on every
+  POST/PUT/DELETE. Build this alongside Programs' first mutating endpoint,
+  not as an afterthought once mutations already exist.
   (components/Header.tsx, replaces the old AuthStatus.tsx).
 
 ## Data integrity (not enforced yet)

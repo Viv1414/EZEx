@@ -2,7 +2,9 @@
 Password hashing + JWT issuing/verification for login sessions.
 """
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 import bcrypt
 import jwt
@@ -24,19 +26,35 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
 
 
+@dataclass
+class TokenPayload:
+    user_id: int
+    jti: str  # "JWT ID" -- a unique id for this specific token, so logout can revoke this one issuance only
+    expires_at: datetime
+
+
 def create_access_token(user_id: int) -> str:
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
-    # "sub" (subject) and "exp" (expiry) are standard JWT claim names --
-    # jwt.decode checks "exp" against the current time automatically.
-    payload = {"sub": str(user_id), "exp": expires_at}
+    # "sub"/"jti"/"exp" are standard JWT claim names -- jwt.decode checks
+    # "exp" against the current time automatically. "jti" is what makes
+    # revocation possible: without it, every token from this user would
+    # look identical, and logout could only revoke ALL of a user's
+    # sessions at once instead of just the one being logged out of.
+    payload = {"sub": str(user_id), "jti": uuid4().hex, "exp": expires_at}
     return jwt.encode(payload, settings.secret_key, algorithm=JWT_ALGORITHM)
 
 
-def decode_access_token(token: str) -> int | None:
-    """Returns the user id the token was issued for, or None if the token
-    is missing, expired, or has been tampered with (bad signature)."""
+def decode_access_token(token: str) -> TokenPayload | None:
+    """Returns the token's payload, or None if the token is missing,
+    expired, malformed, or has been tampered with (bad signature).
+    Does NOT check revocation -- that's a separate DB lookup, done by
+    whoever calls this (get_current_user, logout)."""
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[JWT_ALGORITHM])
-        return int(payload["sub"])
-    except jwt.PyJWTError:
+        return TokenPayload(
+            user_id=int(payload["sub"]),
+            jti=payload["jti"],
+            expires_at=datetime.fromtimestamp(payload["exp"], tz=timezone.utc),
+        )
+    except (jwt.PyJWTError, KeyError, ValueError):
         return None

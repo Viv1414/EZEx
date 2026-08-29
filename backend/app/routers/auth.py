@@ -1,14 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.limiter import limiter
-from app.core.security import COOKIE_NAME, create_access_token, verify_password
+from app.core.security import COOKIE_NAME, create_access_token, decode_access_token, verify_password
 from app.models.user import User
 from app.schemas.user import UserCreate, UserLogin, UserRead
-from app.services import user_service
+from app.services import token_service, user_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -51,7 +51,20 @@ def login(request: Request, payload: UserLogin, response: Response, db: Session 
 
 
 @router.post("/logout")
-def logout(response: Response):
+def logout(
+    response: Response,
+    access_token: str | None = Cookie(default=None),
+    db: Session = Depends(get_db),
+):
+    # Actually revoke this specific token server-side, not just clear the
+    # browser's copy -- without this, a copy of the cookie taken before
+    # logout (e.g. a stolen one) would keep working until it naturally
+    # expired regardless of the user clicking "log out."
+    if access_token is not None:
+        token_payload = decode_access_token(access_token)
+        if token_payload is not None:
+            token_service.revoke_token(db, token_payload.jti, token_payload.expires_at)
+
     response.delete_cookie(COOKIE_NAME)
     return {"detail": "Logged out"}
 
