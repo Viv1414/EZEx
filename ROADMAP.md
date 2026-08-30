@@ -14,9 +14,6 @@ Items are ✅ once built; everything else below is still not built.
 - Auth: POST /auth/signup, /auth/login (httpOnly JWT cookie), /auth/logout,
   GET /auth/me, plus frontend /signup and /login forms + header AuthStatus.
 
-## Known issues (deprioritized, 2026-08-28)
-- Login page: clicking "Log in" while an error is already showing causes
-  the button to visibly glitch. Not investigated yet.
 
 ## Auth follow-ups (not built yet)
 - ✅ Logout now actually revokes the specific token server-side (jti +
@@ -53,10 +50,14 @@ Items are ✅ once built; everything else below is still not built.
   bypassable via curl/Postman. Server Components forward the browser's
   cookie manually via lib/server-auth.ts's getAuthCookieHeader()
   (next/headers' cookies()), passed into each lib/api.ts call.
-- ⚠️ Still true: the middleware gate itself only checks cookie *presence*,
-  not signature/expiry -- an expired-but-present cookie gets past
-  middleware, then the actual data fetch 401s and the page throws an
-  unhandled error instead of a clean redirect to /login. Minor, not fixed yet.
+- ✅ The middleware gate still only checks cookie *presence*, not
+  signature/expiry, but the gap is closed: lib/api.ts's
+  redirectOnAuthError (generalized from redirectIfUnverified) now
+  redirects a 401 to /login instead of letting the page crash. Verified
+  with a tampered cookie that passes middleware but fails backend
+  validation -- now redirects cleanly.
+- Login page: clicking "Log in" while an error is already showing caused
+  a brief button glitch -- fixed (per user, cause/fix not detailed here).
 
 ## Security hardening (2026-08-28)
 - ✅ SECRET_KEY: app now refuses to start if ENVIRONMENT=production and

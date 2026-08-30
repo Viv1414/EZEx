@@ -19,11 +19,19 @@ function authHeaders(cookieHeader?: string): HeadersInit {
   return cookieHeader ? { Cookie: cookieHeader } : {};
 }
 
-// Logged in but not verified -> backend returns 403 on these endpoints.
-// Bounce to the "please verify" page instead of letting the page crash on
-// an unhandled error. Only ever called from Server Components (redirect()
-// isn't valid from client-side code), which is all that calls these 6 functions.
-function redirectIfUnverified(res: Response): void {
+// Bounce to the right page instead of letting the page crash on an
+// unhandled error. Only ever called from Server Components (redirect()
+// isn't valid from client-side code), which is all that calls these 6
+// functions.
+// - 401: not logged in, or a cookie that exists but is no longer valid
+//   (naturally expired, revoked by logout, tampered with, etc.) --
+//   middleware.ts only checks that the cookie is *present*, not that it's
+//   still valid, so this is what catches the gap between those two checks.
+// - 403: logged in, but the email isn't verified yet.
+function redirectOnAuthError(res: Response): void {
+  if (res.status === 401) {
+    redirect("/login");
+  }
   if (res.status === 403) {
     redirect("/verify");
   }
@@ -32,7 +40,7 @@ function redirectIfUnverified(res: Response): void {
 export async function getExercises(q?: string, cookieHeader?: string): Promise<Exercise[]> {
   const url = q ? `${API_URL}/exercises?q=${encodeURIComponent(q)}` : `${API_URL}/exercises`;
   const res = await fetch(url, { cache: "no-store", headers: authHeaders(cookieHeader) });
-  redirectIfUnverified(res);
+  redirectOnAuthError(res);
   if (!res.ok) {
     throw new Error(`Failed to fetch exercises: ${res.status}`);
   }
@@ -49,7 +57,7 @@ export async function getExercise(
     cache: "no-store",
     headers: authHeaders(cookieHeader),
   });
-  redirectIfUnverified(res);
+  redirectOnAuthError(res);
   if (res.status === 404) {
     return null;
   }
@@ -64,7 +72,7 @@ export async function getGeneralParts(cookieHeader?: string): Promise<string[]> 
     cache: "no-store",
     headers: authHeaders(cookieHeader),
   });
-  redirectIfUnverified(res);
+  redirectOnAuthError(res);
   if (!res.ok) {
     throw new Error(`Failed to fetch general parts: ${res.status}`);
   }
@@ -79,7 +87,7 @@ export async function getExercisesByGeneralPart(
     cache: "no-store",
     headers: authHeaders(cookieHeader),
   });
-  redirectIfUnverified(res);
+  redirectOnAuthError(res);
   if (!res.ok) {
     throw new Error(`Failed to fetch exercises for general part ${generalPart}: ${res.status}`);
   }
@@ -91,7 +99,7 @@ export async function getInjuries(cookieHeader?: string): Promise<Injury[]> {
     cache: "no-store",
     headers: authHeaders(cookieHeader),
   });
-  redirectIfUnverified(res);
+  redirectOnAuthError(res);
   if (!res.ok) {
     throw new Error(`Failed to fetch injuries: ${res.status}`);
   }
@@ -106,7 +114,7 @@ export async function getExercisesForInjury(
     cache: "no-store",
     headers: authHeaders(cookieHeader),
   });
-  redirectIfUnverified(res);
+  redirectOnAuthError(res);
   if (!res.ok) {
     throw new Error(`Failed to fetch exercises for injury ${injuryId}: ${res.status}`);
   }
