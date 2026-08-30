@@ -2,6 +2,8 @@
 Password hashing + JWT issuing/verification for login sessions.
 """
 
+import hashlib
+import hmac
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
@@ -58,3 +60,21 @@ def decode_access_token(token: str) -> TokenPayload | None:
         )
     except (jwt.PyJWTError, KeyError, ValueError):
         return None
+
+
+def create_csrf_token(jti: str) -> str:
+    """Derives a CSRF token from this session's jti by signing it with our
+    secret key. Not stored anywhere -- anyone (including us) can recompute
+    the expected value for a given jti, but only if they know secret_key,
+    which is exactly what makes it unforgeable by an attacker. Tied to the
+    session on purpose: log out (revoking this jti) and the CSRF token
+    derived from it stops meaning anything too, with no extra bookkeeping."""
+    return hmac.new(settings.secret_key.encode(), jti.encode(), hashlib.sha256).hexdigest()
+
+
+def verify_csrf_token(jti: str, submitted_token: str) -> bool:
+    expected = create_csrf_token(jti)
+    # constant-time comparison -- a plain `==` leaks timing information
+    # character-by-character, which a patient attacker could exploit to
+    # guess the correct token faster than brute force should allow.
+    return hmac.compare_digest(expected, submitted_token)

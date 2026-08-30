@@ -22,3 +22,13 @@ class UserRead(BaseModel):
     created_at: datetime
     # hashed_password deliberately excluded -- this schema is what gets
     # sent back to the client, and the hash should never leave the server
+
+
+class UserWithCsrf(UserRead):
+    """UserRead plus the CSRF token for the session that was just
+    established. Only used by endpoints that definitely have an active
+    session at response time (login, me) -- e.g. verify-email might be
+    opened on a device with no session cookie at all, so it can't hand
+    back a token tied to one."""
+
+    csrf_token: str

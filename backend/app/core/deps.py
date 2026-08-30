@@ -5,11 +5,11 @@ as a parameter -- FastAPI runs this function first and rejects the
 request before the route body ever executes if it raises.
 """
 
-from fastapi import Cookie, Depends, HTTPException
+from fastapi import Cookie, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import decode_access_token
+from app.core.security import decode_access_token, verify_csrf_token
 from app.models.user import User
 from app.services import token_service
 
@@ -47,3 +47,21 @@ def get_current_verified_user(current_user: User = Depends(get_current_user)) ->
     if not current_user.is_verified:
         raise HTTPException(status_code=403, detail="Email not verified")
     return current_user
+
+
+def require_csrf(
+    access_token: str | None = Cookie(default=None),
+    x_csrf_token: str | None = Header(default=None, alias="X-CSRF-Token"),
+    current_user: User = Depends(get_current_user),  # must be logged in before CSRF is even meaningful
+) -> None:
+    """Add this alongside get_current_user (not instead of it) on every
+    POST/PUT/DELETE endpoint. See core/security.py's create_csrf_token for
+    why a cross-site form can make the browser attach the access_token
+    cookie automatically, but can't produce a matching X-CSRF-Token."""
+    token_payload = decode_access_token(access_token) if access_token else None
+    if (
+        token_payload is None
+        or x_csrf_token is None
+        or not verify_csrf_token(token_payload.jti, x_csrf_token)
+    ):
+        raise HTTPException(status_code=403, detail="Missing or invalid CSRF token")

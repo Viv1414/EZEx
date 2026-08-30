@@ -4,11 +4,17 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, require_csrf
 from app.core.limiter import limiter
-from app.core.security import COOKIE_NAME, create_access_token, decode_access_token, verify_password
+from app.core.security import (
+    COOKIE_NAME,
+    create_access_token,
+    create_csrf_token,
+    decode_access_token,
+    verify_password,
+)
 from app.models.user import User
-from app.schemas.user import UserCreate, UserLogin, UserRead
+from app.schemas.user import UserCreate, UserLogin, UserRead, UserWithCsrf
 from app.services import email_verification_service, token_service, user_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -24,7 +30,7 @@ def signup(request: Request, payload: UserCreate, db: Session = Depends(get_db))
     return user
 
 
-@router.post("/login", response_model=UserRead)
+@router.post("/login", response_model=UserWithCsrf)
 @limiter.limit("5/minute")
 def login(request: Request, payload: UserLogin, response: Response, db: Session = Depends(get_db)):
     user = user_service.get_user_by_email(db, payload.email)
@@ -50,7 +56,11 @@ def login(request: Request, payload: UserLogin, response: Response, db: Session 
         samesite="none" if settings.environment == "production" else "lax",
         max_age=settings.access_token_expire_minutes * 60,
     )
-    return user
+    # Re-decoding the token we just made to pull out its jti is a little
+    # wasteful, but avoids changing create_access_token's return shape for
+    # its other callers (there's only one, but still) just for this.
+    jti = decode_access_token(token).jti  # type: ignore[union-attr] -- can't fail, we just made it
+    return {**UserRead.model_validate(user).model_dump(), "csrf_token": create_csrf_token(jti)}
 
 
 @router.post("/logout")
@@ -58,6 +68,7 @@ def logout(
     response: Response,
     access_token: str | None = Cookie(default=None),
     db: Session = Depends(get_db),
+    _csrf_ok: None = Depends(require_csrf),
 ):
     # Actually revoke this specific token server-side, not just clear the
     # browser's copy -- without this, a copy of the cookie taken before
@@ -72,11 +83,14 @@ def logout(
     return {"detail": "Logged out"}
 
 
-@router.get("/me", response_model=UserRead)
-def me(current_user: User = Depends(get_current_user)):
+@router.get("/me", response_model=UserWithCsrf)
+def me(current_user: User = Depends(get_current_user), access_token: str | None = Cookie(default=None)):
     # get_current_user already did all the work (read cookie, verify JWT,
-    # load the user) -- if we got here, current_user is guaranteed valid.
-    return current_user
+    # load the user) -- if we got here, current_user is guaranteed valid,
+    # and access_token is guaranteed to decode (get_current_user already
+    # proved that), so the jti is always available here too.
+    jti = decode_access_token(access_token).jti  # type: ignore[union-attr]
+    return {**UserRead.model_validate(current_user).model_dump(), "csrf_token": create_csrf_token(jti)}
 
 
 class VerifyEmailRequest(BaseModel):

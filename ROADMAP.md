@@ -73,24 +73,25 @@ Items are ✅ once built; everything else below is still not built.
 - ✅ DEPLOYMENT.md created -- checklist for env vars, HTTPS, DB credentials,
   and known gaps to revisit before real users arrive.
 - Header logo now goes to /dashboard when logged in, "/" when logged out
-
-## 🔴 CSRF -- must build before Programs (or any other mutating endpoint), not after
-Fixing the cookie's SameSite for split-domain deployment (above) was necessary
-but has a side effect: `SameSite=lax` incidentally blocked cross-site form
-submissions/fetches, which is also what stops classic CSRF. `SameSite=none`
-(required once frontend/backend are on different domains) removes that
-protection. CORS does NOT cover this gap -- CORS only governs whether
-cross-origin JavaScript can *read a response*, not whether a plain HTML
-form can be submitted cross-site with cookies attached.
-- Low impact today: only /auth/login (login-CSRF) and /auth/logout exist
-  to target, neither very damaging.
-- High impact once Programs exist: a malicious page could silently
-  create/edit/delete a logged-in victim's program.
-- Fix: a CSRF token (e.g. double-submit cookie pattern, or a custom header
-  the backend requires on state-changing requests) checked on every
-  POST/PUT/DELETE. Build this alongside Programs' first mutating endpoint,
-  not as an afterthought once mutations already exist.
   (components/Header.tsx, replaces the old AuthStatus.tsx).
+
+## ✅ CSRF (2026-08-30)
+Token is derived, not stored: `HMAC(secret_key, jti)` (core/security.py's
+create_csrf_token/verify_csrf_token) -- tied to the session's jti, so it
+naturally becomes invalid the moment that session is revoked, no extra
+bookkeeping needed. Handed to the frontend in the login/me response body
+(not a second cookie -- frontend and backend are different domains, so JS
+on the frontend can't read a cookie the backend set anyway). Frontend
+holds it in memory (lib/api.ts's module-level csrfToken, refreshed by
+login()/getCurrentUser()) and sends it as `X-CSRF-Token` on mutating
+requests. core/deps.py's require_csrf checks it; wired up to
+POST /auth/logout as the first protected endpoint -- verified: missing
+or wrong header -> 403, correct header -> succeeds and still revokes the
+session correctly. Any future mutating endpoint (Programs, etc.) adds
+`Depends(require_csrf)` alongside `Depends(get_current_user)`.
+Login itself stays unprotected on purpose -- there's no session/jti yet
+at that moment to derive a token from, and the impact (forcing a login)
+is low.
 
 ## Data integrity (not enforced yet)
 - Every exercise should have >=1 linked injury -- otherwise there's no way

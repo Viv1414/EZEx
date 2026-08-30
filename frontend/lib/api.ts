@@ -161,6 +161,20 @@ export async function signup(email: string, password: string): Promise<User> {
   return res.json();
 }
 
+// Held in memory only -- reset on every full page load, refreshed by
+// login()/getCurrentUser() whenever they run. That's enough because
+// Header.tsx (in the root layout) calls getCurrentUser() on every page,
+// so by the time a user could trigger a mutating action (logout, and
+// eventually things like creating a Program), this has almost certainly
+// already been populated. Never persisted (localStorage, a cookie) --
+// it doesn't need to survive a reload, it just needs to exist by the
+// time it's used.
+let csrfToken: string | null = null;
+
+function csrfHeaders(): HeadersInit {
+  return csrfToken ? { "X-CSRF-Token": csrfToken } : {};
+}
+
 export async function login(email: string, password: string): Promise<User> {
   const res = await fetch(`${API_URL}/auth/login`, {
     method: "POST",
@@ -171,11 +185,22 @@ export async function login(email: string, password: string): Promise<User> {
   if (!res.ok) {
     throw new Error(await parseErrorDetail(res, `Login failed: ${res.status}`));
   }
-  return res.json();
+  const data = await res.json();
+  csrfToken = data.csrf_token;
+  return data;
 }
 
 export async function logout(): Promise<void> {
-  await fetch(`${API_URL}/auth/logout`, { method: "POST", credentials: "include" });
+  // credentials:"include" attaches the access_token cookie automatically
+  // (that part a forged cross-site request could do too) -- csrfHeaders()
+  // is the part it can't replicate, since it never had the token to begin
+  // with. See core/deps.py's require_csrf on the backend for the other half.
+  await fetch(`${API_URL}/auth/logout`, {
+    method: "POST",
+    credentials: "include",
+    headers: csrfHeaders(),
+  });
+  csrfToken = null;
 }
 
 // Returns null when not logged in (401) instead of throwing -- that's an
@@ -188,7 +213,9 @@ export async function getCurrentUser(): Promise<User | null> {
   if (!res.ok) {
     throw new Error(`Failed to fetch current user: ${res.status}`);
   }
-  return res.json();
+  const data = await res.json();
+  csrfToken = data.csrf_token;
+  return data;
 }
 
 export async function verifyEmail(token: string): Promise<User> {
