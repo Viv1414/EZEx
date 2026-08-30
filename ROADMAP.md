@@ -35,7 +35,7 @@ Items are ✅ once built; everything else below is still not built.
   provider at deploy time, no code change, see core/email.py). Unverified
   users can log in but get 403 from every data endpoint
   (get_current_verified_user), and the frontend (lib/api.ts's
-  redirectIfUnverified) bounces them to /verify-email-pending, which has a
+  redirectIfUnverified) bounces them to /verify, which has a
   resend button (POST /auth/resend-verification). /verify-email reads the
   emailed token and completes verification. Verified end to end through
   Mailpit's real inbox, not just the API.

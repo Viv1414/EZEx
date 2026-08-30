@@ -34,12 +34,16 @@ function VerifyEmailContent() {
   if (status === "success") {
     return (
       <>
-        <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Email verified!</h1>
-        <a
-          href="/dashboard"
-          className="mt-6 rounded-full bg-zinc-900 px-6 py-3 text-sm font-medium text-white dark:bg-zinc-50 dark:text-zinc-900"
-        >
-          Go to dashboard
+        <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Verified!</h1>
+        <p className="mt-2 text-zinc-500">
+          You may close this tab and continue to the dashboard.
+        </p>
+        {/* Fallback for when there's no other tab to return to (e.g. the
+            email was opened on a different device than the one that
+            signed up) -- the primary path is /verify's polling picking
+            this up on its own, not clicking this. */}
+        <a href="/dashboard" className="mt-6 text-sm text-zinc-500 hover:underline">
+          Or go to the dashboard from here
         </a>
       </>
     );
@@ -49,7 +53,7 @@ function VerifyEmailContent() {
     <>
       <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Verification failed</h1>
       <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>
-      <a href="/verify-email-pending" className="mt-4 text-sm text-zinc-500 hover:underline">
+      <a href="/verify" className="mt-4 text-sm text-zinc-500 hover:underline">
         Request a new link
       </a>
     </>

@@ -4,8 +4,9 @@ import { NextRequest, NextResponse } from "next/server";
 // /verify-email is public on purpose -- the link is opened from an email,
 // possibly in a browser/device with no session cookie at all; the token
 // itself (not a login) is what proves the request is legitimate.
-// /verify-email-pending is NOT public -- reaching it already implies a
-// cookie exists (redirected there from a 403, or navigated to resend).
+// /verify (the "please check your inbox" page) is NOT public -- reaching
+// it already implies a cookie exists (redirected there from a 403, or
+// navigated to resend).
 const PUBLIC_PATHS = ["/", "/login", "/signup", "/verify-email"];
 
 // Runs on the server before a matched page renders. This only checks

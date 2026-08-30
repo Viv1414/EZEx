@@ -12,21 +12,32 @@ from app.models.user import User
 TOKEN_EXPIRE_HOURS = 1
 
 
-def send_verification_email(db: Session, user: User) -> None:
+def send_verification_email(db: Session, user: User) -> bool:
+    """Returns True if the email actually sent. An SMTP failure (wrong
+    credentials, provider outage, etc.) is a real possibility -- the token
+    is still created either way, so a caller can decide what to do (let
+    signup succeed regardless; tell the user resend failed and to try
+    again) instead of the whole request crashing with an unhandled
+    exception, which is what happened before this."""
     token = secrets.token_urlsafe(32)
     expires_at = datetime.now(timezone.utc) + timedelta(hours=TOKEN_EXPIRE_HOURS)
     db.add(EmailVerificationToken(user_id=user.id, token=token, expires_at=expires_at))
     db.commit()
 
     verify_url = f"{settings.frontend_url}/verify-email?token={token}"
-    send_email(
-        to=user.email,
-        subject="Verify your EZPT email",
-        body=(
-            f"Click the link below to verify your email address:\n\n{verify_url}\n\n"
-            f"This link expires in {TOKEN_EXPIRE_HOURS} hour{'' if TOKEN_EXPIRE_HOURS == 1 else 's'}."
-        ),
-    )
+    try:
+        send_email(
+            to=user.email,
+            subject="Verify your EZPT email",
+            body=(
+                f"Click the link below to verify your email address:\n\n{verify_url}\n\n"
+                f"This link expires in {TOKEN_EXPIRE_HOURS} hour{'' if TOKEN_EXPIRE_HOURS == 1 else 's'}."
+            ),
+        )
+        return True
+    except Exception as e:
+        print(f"Failed to send verification email to {user.email}: {e}")
+        return False
 
 
 def verify_email_token(db: Session, token: str) -> User | None:

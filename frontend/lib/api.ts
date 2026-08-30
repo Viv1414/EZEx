@@ -25,7 +25,7 @@ function authHeaders(cookieHeader?: string): HeadersInit {
 // isn't valid from client-side code), which is all that calls these 6 functions.
 function redirectIfUnverified(res: Response): void {
   if (res.status === 403) {
-    redirect("/verify-email-pending");
+    redirect("/verify");
   }
 }
 

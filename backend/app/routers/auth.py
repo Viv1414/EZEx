@@ -100,5 +100,6 @@ def resend_verification(
 ):
     if current_user.is_verified:
         return {"detail": "Already verified"}
-    email_verification_service.send_verification_email(db, current_user)
+    if not email_verification_service.send_verification_email(db, current_user):
+        raise HTTPException(status_code=502, detail="Failed to send verification email, please try again later")
     return {"detail": "Verification email sent"}
