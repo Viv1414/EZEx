@@ -8,7 +8,7 @@ from app.core.config import settings
 from app.core.limiter import limiter
 from app.routers import auth, exercises, health, injuries
 
-app = FastAPI(title="ezpt API")
+app = FastAPI(title="ezex API")
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)

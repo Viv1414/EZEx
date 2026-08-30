@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     smtp_username: str | None = None
     smtp_password: str | None = None
     smtp_use_tls: bool = False
-    smtp_from_email: str = "noreply@ezpt.local"
+    smtp_from_email: str = "noreply@ezex.local"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

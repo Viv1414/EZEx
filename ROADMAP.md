@@ -1,4 +1,4 @@
-# ezpt — backlog / not-yet-built
+# ezex — backlog / not-yet-built
 
 Captured ideas that are intentionally deferred, so they don't get lost.
 Items are ✅ once built; everything else below is still not built.

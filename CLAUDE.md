@@ -1,8 +1,8 @@
 
-# ezpt — Project Context
+# ezex — Project Context
 
 ## Purpose
-ezpt is a free, accessible physiotherapy exercise website and later, as an app on app store. Core features:
+ezex is a free, accessible physiotherapy exercise website and later, as an app on app store. Core features:
 - Browsable collections of PT exercises
 - Users can build their own custom workouts from those exercises
 - Search/browse by injury or symptom (e.g. "ankle sprain") to surface relevant exercises

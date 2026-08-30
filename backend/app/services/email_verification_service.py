@@ -28,7 +28,7 @@ def send_verification_email(db: Session, user: User) -> bool:
     try:
         send_email(
             to=user.email,
-            subject="Verify your EZPT email",
+            subject="Verify your EZEx email",
             body=(
                 f"Click the link below to verify your email address:\n\n{verify_url}\n\n"
                 f"This link expires in {TOKEN_EXPIRE_HOURS} hour{'' if TOKEN_EXPIRE_HOURS == 1 else 's'}."

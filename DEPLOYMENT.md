@@ -1,4 +1,4 @@
-# ezpt — deployment checklist
+# ezex — deployment checklist
 
 Not built/done yet -- a checklist for when you actually deploy. Assumes
 managed platforms (e.g. Vercel for frontend, Railway/Render/Fly for
@@ -12,7 +12,7 @@ assumption changes, revisit this whole file.
   intentional, don't work around it.
 - `DATABASE_URL` — from whatever managed Postgres add-on you provision;
   format: `postgresql+psycopg2://user:pass@host:port/dbname`
-- `CORS_ORIGINS` — your real frontend domain (e.g. `https://ezpt.app`),
+- `CORS_ORIGINS` — your real frontend domain (e.g. `https://ezex.app`),
   not `http://localhost:3000`
 - `ENVIRONMENT=production` — flips the login cookie to `Secure` (HTTPS-only)
   and `SameSite=None` (required for the cookie to survive frontend and
