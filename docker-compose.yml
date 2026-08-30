@@ -17,6 +17,17 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
 
+  # Fake local SMTP server + web inbox at localhost:8025 -- lets email
+  # verification actually be tested (a real link you can click) without
+  # signing up for a real email-delivery provider or sending anything for
+  # real. Swap to a real provider at deploy time via SMTP_* env vars,
+  # not by changing code -- see core/email.py.
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
   backend:
     build: ./backend
     env_file:
@@ -27,6 +38,7 @@ services:
       - ./backend:/app
     depends_on:
       - db
+      - mailpit
 
   frontend:
     build: ./frontend

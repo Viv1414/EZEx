@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 import { Exercise, ExerciseDetail } from "@/types/exercise";
 import { ExerciseWithEffectiveness, Injury } from "@/types/injury";
 import { User } from "@/types/user";
@@ -7,19 +9,30 @@ import { User } from "@/types/user";
 // where frontend and backend both really are on localhost.
 const API_URL = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-// These 6 functions hit endpoints that now require login (backend has
-// Depends(get_current_user) on them). Each takes an optional cookieHeader,
-// which the *caller* (a Server Component) gets from lib/server-auth.ts's
-// getAuthCookieHeader() -- this file can't call that itself (next/headers
-// isn't usable from client components, and this module is shared with
-// login/signup's client-side code).
+// These 6 functions hit endpoints that now require login AND a verified
+// email (backend has Depends(get_current_verified_user) on them). Each
+// takes an optional cookieHeader, which the *caller* (a Server Component)
+// gets from lib/server-auth.ts's getAuthCookieHeader() -- this file can't
+// call that itself (next/headers isn't usable from client components, and
+// this module is shared with login/signup's client-side code).
 function authHeaders(cookieHeader?: string): HeadersInit {
   return cookieHeader ? { Cookie: cookieHeader } : {};
+}
+
+// Logged in but not verified -> backend returns 403 on these endpoints.
+// Bounce to the "please verify" page instead of letting the page crash on
+// an unhandled error. Only ever called from Server Components (redirect()
+// isn't valid from client-side code), which is all that calls these 6 functions.
+function redirectIfUnverified(res: Response): void {
+  if (res.status === 403) {
+    redirect("/verify-email-pending");
+  }
 }
 
 export async function getExercises(q?: string, cookieHeader?: string): Promise<Exercise[]> {
   const url = q ? `${API_URL}/exercises?q=${encodeURIComponent(q)}` : `${API_URL}/exercises`;
   const res = await fetch(url, { cache: "no-store", headers: authHeaders(cookieHeader) });
+  redirectIfUnverified(res);
   if (!res.ok) {
     throw new Error(`Failed to fetch exercises: ${res.status}`);
   }
@@ -36,6 +49,7 @@ export async function getExercise(
     cache: "no-store",
     headers: authHeaders(cookieHeader),
   });
+  redirectIfUnverified(res);
   if (res.status === 404) {
     return null;
   }
@@ -50,6 +64,7 @@ export async function getGeneralParts(cookieHeader?: string): Promise<string[]> 
     cache: "no-store",
     headers: authHeaders(cookieHeader),
   });
+  redirectIfUnverified(res);
   if (!res.ok) {
     throw new Error(`Failed to fetch general parts: ${res.status}`);
   }
@@ -64,6 +79,7 @@ export async function getExercisesByGeneralPart(
     cache: "no-store",
     headers: authHeaders(cookieHeader),
   });
+  redirectIfUnverified(res);
   if (!res.ok) {
     throw new Error(`Failed to fetch exercises for general part ${generalPart}: ${res.status}`);
   }
@@ -75,6 +91,7 @@ export async function getInjuries(cookieHeader?: string): Promise<Injury[]> {
     cache: "no-store",
     headers: authHeaders(cookieHeader),
   });
+  redirectIfUnverified(res);
   if (!res.ok) {
     throw new Error(`Failed to fetch injuries: ${res.status}`);
   }
@@ -89,6 +106,7 @@ export async function getExercisesForInjury(
     cache: "no-store",
     headers: authHeaders(cookieHeader),
   });
+  redirectIfUnverified(res);
   if (!res.ok) {
     throw new Error(`Failed to fetch exercises for injury ${injuryId}: ${res.status}`);
   }
@@ -163,5 +181,28 @@ export async function getCurrentUser(): Promise<User | null> {
     throw new Error(`Failed to fetch current user: ${res.status}`);
   }
   return res.json();
+}
+
+export async function verifyEmail(token: string): Promise<User> {
+  const res = await fetch(`${API_URL}/auth/verify-email`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  if (!res.ok) {
+    throw new Error(await parseErrorDetail(res, `Verification failed: ${res.status}`));
+  }
+  return res.json();
+}
+
+export async function resendVerification(): Promise<void> {
+  const res = await fetch(`${API_URL}/auth/resend-verification`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!res.ok) {
+    throw new Error(await parseErrorDetail(res, `Failed to resend verification email: ${res.status}`));
+  }
 }
 

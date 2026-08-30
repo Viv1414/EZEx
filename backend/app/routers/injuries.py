@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_verified_user
 from app.models.user import User
 from app.schemas.exercise import ExerciseRead, ExerciseWithEffectiveness
 from app.schemas.injury import InjuryRead
@@ -12,7 +12,7 @@ router = APIRouter(prefix="/injuries", tags=["injuries"])
 
 
 @router.get("", response_model=list[InjuryRead])
-def get_injuries(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_injuries(db: Session = Depends(get_db), current_user: User = Depends(get_current_verified_user)):
     return injury_service.list_injuries(db)
 
 
@@ -20,7 +20,7 @@ def get_injuries(db: Session = Depends(get_db), current_user: User = Depends(get
 def get_exercises_for_injury(
     injury_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_verified_user),
 ):
     links = injury_service.get_exercises_for_injury(db, injury_id)
     return [

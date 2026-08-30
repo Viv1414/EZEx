@@ -37,3 +37,13 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="Invalid or expired session")
 
     return user
+
+
+def get_current_verified_user(current_user: User = Depends(get_current_user)) -> User:
+    """Same as get_current_user, plus requires the account to have
+    verified its email. Separate from get_current_user (rather than
+    baked into it) so /auth/me and friends can still identify an
+    unverified user instead of just rejecting them outright."""
+    if not current_user.is_verified:
+        raise HTTPException(status_code=403, detail="Email not verified")
+    return current_user

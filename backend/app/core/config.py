@@ -28,6 +28,21 @@ class Settings(BaseSettings):
     secret_key: str = "dev-only-insecure-secret-change-me"
     access_token_expire_minutes: int = 60 * 24  # 1 day -- with revocation-on-logout, no refresh-token flow needed
 
+    # Used to build links inside emails (e.g. the verification link) --
+    # the backend has no other way to know the frontend's real address.
+    frontend_url: str = "http://localhost:3000"
+
+    # Email -- defaults point at the local Mailpit container (no auth, no
+    # TLS, nothing actually sent anywhere real). A real provider
+    # (Resend/SendGrid/Postmark/etc.) is just different env var values --
+    # see core/email.py.
+    smtp_host: str = "mailpit"
+    smtp_port: int = 1025
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_use_tls: bool = False
+    smtp_from_email: str = "noreply@ezpt.local"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     @property

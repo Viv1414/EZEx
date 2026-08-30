@@ -29,7 +29,21 @@ Items are ✅ once built; everything else below is still not built.
   it fully solves logout for realistic effort; refresh tokens additionally
   protect a token that's stolen but never logged out of (shorter natural
   lifetime) -- worth revisiting if that scenario becomes a real concern.
-- Email verification, password reset -- not built
+- ✅ Email verification (2026-08-30): User.is_verified + EmailVerificationToken
+  (single-use, 24h expiry). Signup sends a real email via Mailpit (new
+  docker-compose service, local dev only -- swap SMTP_* env vars for a real
+  provider at deploy time, no code change, see core/email.py). Unverified
+  users can log in but get 403 from every data endpoint
+  (get_current_verified_user), and the frontend (lib/api.ts's
+  redirectIfUnverified) bounces them to /verify-email-pending, which has a
+  resend button (POST /auth/resend-verification). /verify-email reads the
+  emailed token and completes verification. Verified end to end through
+  Mailpit's real inbox, not just the API.
+  ⚠️ Pre-existing accounts (created before this feature) are now
+  is_verified=false and will be blocked until they verify or someone
+  flips that column manually -- includes the vivaan@example.com test
+  account used earlier in this session.
+- Password reset -- not built
 - ✅ Frontend signup/login forms (first real Client Components in the app)
 - ✅ Site gated behind login (frontend/middleware.ts): "/" is now a public
   placeholder landing page, everything else (including /dashboard) redirects

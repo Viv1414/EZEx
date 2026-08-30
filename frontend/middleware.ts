@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 
 // Pages reachable without being logged in. Everything else redirects to "/".
-const PUBLIC_PATHS = ["/", "/login", "/signup"];
+// /verify-email is public on purpose -- the link is opened from an email,
+// possibly in a browser/device with no session cookie at all; the token
+// itself (not a login) is what proves the request is legitimate.
+// /verify-email-pending is NOT public -- reaching it already implies a
+// cookie exists (redirected there from a 403, or navigated to resend).
+const PUBLIC_PATHS = ["/", "/login", "/signup", "/verify-email"];
 
 // Runs on the server before a matched page renders. This only checks
 // whether the cookie exists -- it does NOT verify the JWT's signature or
-// expiry (that happens on the backend, via get_current_user). This is a
-// UX gate ("don't even show the page"), not the actual security boundary --
-// the backend API itself isn't auth-protected yet, see ROADMAP.md.
+// expiry (that happens on the backend, via get_current_user), and it says
+// nothing about email verification (that's enforced by the backend's
+// get_current_verified_user on the actual data endpoints, which redirects
+// here via lib/api.ts's redirectIfUnverified on a 403). This is a UX gate
+// ("don't even show the page"), not the only security boundary.
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 

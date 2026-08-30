@@ -18,6 +18,7 @@ class UserRead(BaseModel):
 
     id: int
     email: str
+    is_verified: bool
     created_at: datetime
     # hashed_password deliberately excluded -- this schema is what gets
     # sent back to the client, and the hash should never leave the server

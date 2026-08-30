@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -8,7 +9,7 @@ from app.core.limiter import limiter
 from app.core.security import COOKIE_NAME, create_access_token, decode_access_token, verify_password
 from app.models.user import User
 from app.schemas.user import UserCreate, UserLogin, UserRead
-from app.services import token_service, user_service
+from app.services import email_verification_service, token_service, user_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -18,7 +19,9 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 def signup(request: Request, payload: UserCreate, db: Session = Depends(get_db)):
     if user_service.get_user_by_email(db, payload.email) is not None:
         raise HTTPException(status_code=409, detail="Email already registered")
-    return user_service.create_user(db, payload.email, payload.password)
+    user = user_service.create_user(db, payload.email, payload.password)
+    email_verification_service.send_verification_email(db, user)
+    return user
 
 
 @router.post("/login", response_model=UserRead)
@@ -74,3 +77,28 @@ def me(current_user: User = Depends(get_current_user)):
     # get_current_user already did all the work (read cookie, verify JWT,
     # load the user) -- if we got here, current_user is guaranteed valid.
     return current_user
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+@router.post("/verify-email", response_model=UserRead)
+def verify_email(payload: VerifyEmailRequest, db: Session = Depends(get_db)):
+    user = email_verification_service.verify_email_token(db, payload.token)
+    if user is None:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification link")
+    return user
+
+
+@router.post("/resend-verification")
+@limiter.limit("5/minute")
+def resend_verification(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # logged in, but NOT necessarily verified yet -- that's the point
+):
+    if current_user.is_verified:
+        return {"detail": "Already verified"}
+    email_verification_service.send_verification_email(db, current_user)
+    return {"detail": "Verification email sent"}
