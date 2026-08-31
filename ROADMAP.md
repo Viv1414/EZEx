@@ -13,6 +13,28 @@ Items are ✅ once built; everything else below is still not built.
   (`description` removed from the model -- instructions supersede it)
 - Auth: POST /auth/signup, /auth/login (httpOnly JWT cookie), /auth/logout,
   GET /auth/me, plus frontend /signup and /login forms + header AuthStatus.
+- ✅ Programs (2026-08-31): Program + ProgramExercise (join table, same
+  many-to-many reasoning as ExerciseInjury -- one Program has many
+  Exercises, one Exercise can sit in many different users' Programs).
+  Backend: POST/GET /programs, GET/DELETE /programs/{id},
+  POST /programs/{id}/exercises, DELETE /programs/{id}/exercises/{exercise_id}
+  -- all mutating ones require Depends(require_csrf) (first real use of
+  the CSRF infra built just before this). Every endpoint checks ownership
+  (get_owned_program returns None for "doesn't exist" and "isn't yours"
+  alike -> both surface as 404, so a stranger can't even confirm an ID
+  exists) -- this is the first model in the app where per-user ownership
+  matters at all. Creating from an injury bulk-adds that injury's
+  exercises ranked by effectiveness (verified: shin splints -> Heel
+  Slides then Ankle Alphabet, matching known ratings). Frontend:
+  dashboard "Your Programs" section, /programs/new, /programs/[id]
+  (ProgramDetailView.tsx handles remove-exercise/delete-program),
+  "Add to program" button on the exercise page. Verified end to end
+  through the real pages, not just the API.
+- ⚠️ Minor, low priority: User has no cascade delete toward
+  EmailVerificationToken or Program (hit the FK violation manually
+  cleaning up test accounts three times now). Only matters once an actual
+  "delete my account" feature exists (not built/planned yet) or for
+  manual dev cleanup -- not worth a migration just for that today.
 
 
 ## Auth follow-ups (not built yet)
@@ -126,9 +148,10 @@ is low.
 - Scrollable related-exercises section at the bottom
 
 ## Programs (= "custom workouts" from the Purpose section, renamed in wireframes)
-- User builds a Program by picking an injury; matching exercises surface
-  ranked by effectiveness rating for that injury
-- Programs can also be assigned to a client by their physiotherapist
+- ✅ User builds a Program by picking an injury; matching exercises surface
+  ranked by effectiveness rating for that injury (see Done section above)
+- Programs can also be assigned to a client by their physiotherapist --
+  still deferred, needs the PT role system (see Physiotherapist features)
 
 ## Dashboard (from wireframes, 2026-08-25)
 - "Your Programs" row (user's active programs, plus an "add" tile)

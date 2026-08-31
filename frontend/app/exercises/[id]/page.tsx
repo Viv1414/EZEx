@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 
-import { getExercise } from "@/lib/api";
+import { getExercise, getPrograms } from "@/lib/api";
 import { getAuthCookieHeader } from "@/lib/server-auth";
+import AddToProgramButton from "@/components/AddToProgramButton";
 
 export default async function ExercisePage({
   params,
@@ -10,7 +11,10 @@ export default async function ExercisePage({
 }) {
   const { id } = await params;
   const cookieHeader = await getAuthCookieHeader();
-  const exercise = await getExercise(Number(id), cookieHeader);
+  const [exercise, programs] = await Promise.all([
+    getExercise(Number(id), cookieHeader),
+    getPrograms(cookieHeader),
+  ]);
 
   if (!exercise) {
     notFound();
@@ -33,6 +37,8 @@ export default async function ExercisePage({
       <p className="text-sm text-zinc-500">
         {exercise.general_part} / {exercise.body_part}
       </p>
+
+      <AddToProgramButton exerciseId={exercise.id} programs={programs} />
 
       {exercise.video_url && (
         <video controls className="mt-6 w-full rounded-lg bg-black">

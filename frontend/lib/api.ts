@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { Exercise, ExerciseDetail } from "@/types/exercise";
 import { ExerciseWithEffectiveness, Injury } from "@/types/injury";
+import { Program, ProgramDetail } from "@/types/program";
 import { User } from "@/types/user";
 
 // API_URL (server-only) wins when set -- that's the Docker-internal address.
@@ -117,6 +118,35 @@ export async function getExercisesForInjury(
   redirectOnAuthError(res);
   if (!res.ok) {
     throw new Error(`Failed to fetch exercises for injury ${injuryId}: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function getPrograms(cookieHeader?: string): Promise<Program[]> {
+  const res = await fetch(`${API_URL}/programs`, {
+    cache: "no-store",
+    headers: authHeaders(cookieHeader),
+  });
+  redirectOnAuthError(res);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch programs: ${res.status}`);
+  }
+  return res.json();
+}
+
+// Returns null for a 404 (not found, or exists but isn't yours -- the
+// backend deliberately can't tell you which) instead of throwing.
+export async function getProgram(programId: number, cookieHeader?: string): Promise<ProgramDetail | null> {
+  const res = await fetch(`${API_URL}/programs/${programId}`, {
+    cache: "no-store",
+    headers: authHeaders(cookieHeader),
+  });
+  redirectOnAuthError(res);
+  if (res.status === 404) {
+    return null;
+  }
+  if (!res.ok) {
+    throw new Error(`Failed to fetch program ${programId}: ${res.status}`);
   }
   return res.json();
 }
@@ -238,6 +268,62 @@ export async function resendVerification(): Promise<void> {
   });
   if (!res.ok) {
     throw new Error(await parseErrorDetail(res, `Failed to resend verification email: ${res.status}`));
+  }
+}
+
+// --- Programs (mutating) -- same rule as the auth calls above: browser-side
+// only, credentials:"include" for the cookie plus csrfHeaders() for the
+// part a forged cross-site request can't replicate.
+
+export async function createProgram(name: string, injuryId?: number): Promise<Program> {
+  const res = await fetch(`${API_URL}/programs`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...csrfHeaders() },
+    body: JSON.stringify({ name, injury_id: injuryId ?? null }),
+  });
+  if (!res.ok) {
+    throw new Error(await parseErrorDetail(res, `Failed to create program: ${res.status}`));
+  }
+  return res.json();
+}
+
+export async function addExerciseToProgram(programId: number, exerciseId: number): Promise<ProgramDetail> {
+  const res = await fetch(`${API_URL}/programs/${programId}/exercises`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...csrfHeaders() },
+    body: JSON.stringify({ exercise_id: exerciseId }),
+  });
+  if (!res.ok) {
+    throw new Error(await parseErrorDetail(res, `Failed to add exercise: ${res.status}`));
+  }
+  return res.json();
+}
+
+export async function removeExerciseFromProgram(
+  programId: number,
+  exerciseId: number
+): Promise<ProgramDetail> {
+  const res = await fetch(`${API_URL}/programs/${programId}/exercises/${exerciseId}`, {
+    method: "DELETE",
+    credentials: "include",
+    headers: csrfHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(await parseErrorDetail(res, `Failed to remove exercise: ${res.status}`));
+  }
+  return res.json();
+}
+
+export async function deleteProgram(programId: number): Promise<void> {
+  const res = await fetch(`${API_URL}/programs/${programId}`, {
+    method: "DELETE",
+    credentials: "include",
+    headers: csrfHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(await parseErrorDetail(res, `Failed to delete program: ${res.status}`));
   }
 }
 

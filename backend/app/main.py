@@ -6,7 +6,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app.core.config import settings
 from app.core.limiter import limiter
-from app.routers import auth, exercises, health, injuries
+from app.routers import auth, exercises, health, injuries, programs
 
 app = FastAPI(title="ezex API")
 
@@ -26,3 +26,4 @@ app.include_router(health.router)
 app.include_router(exercises.router)
 app.include_router(injuries.router)
 app.include_router(auth.router)
+app.include_router(programs.router)

@@ -19,6 +19,8 @@ from app.models import (  # noqa: F401 -- import registers the models with Base.
     exercise,
     exercise_injury,
     injury,
+    program,
+    program_exercise,
     revoked_token,
     user,
 )
