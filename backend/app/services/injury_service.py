@@ -9,6 +9,10 @@ def list_injuries(db: Session) -> list[Injury]:
     return list(db.scalars(select(Injury).order_by(Injury.name)))
 
 
+def get_injury(db: Session, injury_id: int) -> Injury | None:
+    return db.get(Injury, injury_id)  # primary-key lookup, no query needed
+
+
 def get_injuries_for_exercise(db: Session, exercise_id: int) -> list[ExerciseInjury]:
     """
     Same association table as get_exercises_for_injury, queried from the

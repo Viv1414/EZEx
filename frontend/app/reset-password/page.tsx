@@ -4,7 +4,12 @@ import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { resetPassword } from "@/lib/api";
-import { isValidPasswordLength, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "@/lib/validation";
+import {
+  isValidPasswordCharset,
+  isValidPasswordLength,
+  MAX_PASSWORD_LENGTH,
+  MIN_PASSWORD_LENGTH,
+} from "@/lib/validation";
 
 // useSearchParams() requires a Suspense boundary in the App Router --
 // split into an inner component so the page itself can wrap it.
@@ -30,6 +35,10 @@ function ResetPasswordContent() {
       setError(
         `Invalid password. Please ensure password is between ${MIN_PASSWORD_LENGTH}-${MAX_PASSWORD_LENGTH} characters long.`
       );
+      return;
+    }
+    if (!isValidPasswordCharset(password)) {
+      setError("Password may only contain letters, numbers, and symbols.");
       return;
     }
     if (password !== confirmPassword) {
@@ -71,6 +80,7 @@ function ResetPasswordContent() {
         <input
           type="password"
           required
+          maxLength={MAX_PASSWORD_LENGTH}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="New password"
@@ -79,6 +89,7 @@ function ResetPasswordContent() {
         <input
           type="password"
           required
+          maxLength={MAX_PASSWORD_LENGTH}
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
           placeholder="Confirm new password"

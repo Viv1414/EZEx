@@ -5,6 +5,7 @@ import { useState } from "react";
 import { login, signup } from "@/lib/api";
 import {
   isValidEmail,
+  isValidPasswordCharset,
   isValidPasswordLength,
   MAX_PASSWORD_LENGTH,
   MIN_PASSWORD_LENGTH,
@@ -28,6 +29,10 @@ export default function SignupPage() {
       setError(
         `Invalid password. Please ensure password is between ${MIN_PASSWORD_LENGTH}-${MAX_PASSWORD_LENGTH} characters long.`
       );
+      return;
+    }
+    if (!isValidPasswordCharset(password)) {
+      setError("Password may only contain letters, numbers, and symbols.");
       return;
     }
 
@@ -58,6 +63,7 @@ export default function SignupPage() {
         <input
           type="password"
           required
+          maxLength={MAX_PASSWORD_LENGTH}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Password"

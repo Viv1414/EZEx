@@ -17,7 +17,8 @@ class Program(Base):
     __tablename__ = "programs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    # ondelete="CASCADE" -- see email_verification_token.py's identical column for why
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     # The injury this program was originally built around, if any -- just
     # context for display. Doesn't restrict what exercises actually end up

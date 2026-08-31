@@ -16,7 +16,12 @@ class ProgramExercise(Base):
     __table_args__ = (UniqueConstraint("program_id", "exercise_id", name="uq_program_exercise"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    program_id: Mapped[int] = mapped_column(ForeignKey("programs.id"), nullable=False)
+    # ondelete="CASCADE": needed so a DB-level cascade from deleting a user
+    # (users -> programs) can keep going one more level (programs ->
+    # program_exercises) -- the ORM-level cascade="all, delete-orphan" on
+    # Program.exercise_links only fires for an ORM session.delete(), not a
+    # cascade triggered at the database level.
+    program_id: Mapped[int] = mapped_column(ForeignKey("programs.id", ondelete="CASCADE"), nullable=False)
     exercise_id: Mapped[int] = mapped_column(ForeignKey("exercises.id"), nullable=False)
     order_index: Mapped[int] = mapped_column(nullable=False)
 

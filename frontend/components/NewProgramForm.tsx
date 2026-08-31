@@ -5,6 +5,7 @@ import { useState } from "react";
 import { createProgram } from "@/lib/api";
 import {
   isValidProgramName,
+  isValidProgramCharset,
   MAX_PROGRAM_NAME_LENGTH,
   MIN_PROGRAM_NAME_LENGTH,
 } from "@/lib/validation";
@@ -24,6 +25,10 @@ export default function NewProgramForm({ injuries }: { injuries: Injury[] }) {
       setError(
         `Program name must be between ${MIN_PROGRAM_NAME_LENGTH}-${MAX_PROGRAM_NAME_LENGTH} characters long.`
       );
+      return;
+    }
+    if (!isValidProgramCharset(name.trim())) {
+      setError("Program name may only contain letters, numbers, and symbols.");
       return;
     }
 

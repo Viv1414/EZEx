@@ -1,4 +1,5 @@
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.program import Program
@@ -34,11 +35,20 @@ def get_owned_program(db: Session, program_id: int, user_id: int) -> Program | N
     return db.scalar(select(Program).where(Program.id == program_id, Program.user_id == user_id))
 
 
-def add_exercise(db: Session, program: Program, exercise_id: int) -> ProgramExercise:
+def add_exercise(db: Session, program: Program, exercise_id: int) -> ProgramExercise | None:
+    """Returns None if the exercise is already in the program. The
+    router's own check above catches this in the common case, but two
+    near-simultaneous requests could both pass that check before either
+    commits -- this is the actual race-safe guarantee, relying on the
+    uq_program_exercise DB constraint to reject the second insert."""
     next_index = len(program.exercise_links)
     link = ProgramExercise(program_id=program.id, exercise_id=exercise_id, order_index=next_index)
     db.add(link)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return None
     db.refresh(link)
     return link
 

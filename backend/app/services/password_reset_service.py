@@ -52,13 +52,19 @@ def reset_password(db: Session, token: str, new_password: str) -> User | None:
     user = db.get(User, record.user_id)
     is_expired = record.expires_at < datetime.now(timezone.utc)
 
-    db.delete(record)  # single-use either way -- a used or expired token shouldn't work twice
-    db.commit()
-
     if is_expired or user is None:
+        db.delete(record)  # still single-use -- an expired/dangling token shouldn't work twice either
+        db.commit()
         return None
 
-    user.hashed_password = hash_password(new_password)
+    # Hash before consuming the token -- if this raised, doing it after
+    # deleting the token would burn the user's one-shot reset link on a
+    # failure that had nothing to do with the token itself, locking them
+    # out until they request an entirely new email.
+    new_hash = hash_password(new_password)
+
+    user.hashed_password = new_hash
     user.password_changed_at = datetime.now(timezone.utc)
+    db.delete(record)
     db.commit()
     return user

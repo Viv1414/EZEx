@@ -1,0 +1,1570 @@
+diff --git a/ROADMAP.md b/ROADMAP.md
+index 194d5b1..904393a 100644
+--- a/ROADMAP.md
++++ b/ROADMAP.md
+@@ -13,6 +13,28 @@ Items are ✅ once built; everything else below is still not built.
+   (`description` removed from the model -- instructions supersede it)
+ - Auth: POST /auth/signup, /auth/login (httpOnly JWT cookie), /auth/logout,
+   GET /auth/me, plus frontend /signup and /login forms + header AuthStatus.
++- ✅ Programs (2026-08-31): Program + ProgramExercise (join table, same
++  many-to-many reasoning as ExerciseInjury -- one Program has many
++  Exercises, one Exercise can sit in many different users' Programs).
++  Backend: POST/GET /programs, GET/DELETE /programs/{id},
++  POST /programs/{id}/exercises, DELETE /programs/{id}/exercises/{exercise_id}
++  -- all mutating ones require Depends(require_csrf) (first real use of
++  the CSRF infra built just before this). Every endpoint checks ownership
++  (get_owned_program returns None for "doesn't exist" and "isn't yours"
++  alike -> both surface as 404, so a stranger can't even confirm an ID
++  exists) -- this is the first model in the app where per-user ownership
++  matters at all. Creating from an injury bulk-adds that injury's
++  exercises ranked by effectiveness (verified: shin splints -> Heel
++  Slides then Ankle Alphabet, matching known ratings). Frontend:
++  dashboard "Your Programs" section, /programs/new, /programs/[id]
++  (ProgramDetailView.tsx handles remove-exercise/delete-program),
++  "Add to program" button on the exercise page. Verified end to end
++  through the real pages, not just the API.
++- ⚠️ Minor, low priority: User has no cascade delete toward
++  EmailVerificationToken or Program (hit the FK violation manually
++  cleaning up test accounts three times now). Only matters once an actual
++  "delete my account" feature exists (not built/planned yet) or for
++  manual dev cleanup -- not worth a migration just for that today.
+ 
+ 
+ ## Auth follow-ups (not built yet)
+@@ -40,7 +62,23 @@ Items are ✅ once built; everything else below is still not built.
+   is_verified=false and will be blocked until they verify or someone
+   flips that column manually -- includes the vivaan@example.com test
+   account used earlier in this session.
+-- Password reset -- not built
++- ✅ Password reset (2026-08-31): PasswordResetToken (same single-use
++  shape as EmailVerificationToken). POST /auth/forgot-password (generic
++  response either way -- same user-enumeration protection as login) and
++  POST /auth/reset-password. Resetting stamps User.password_changed_at;
++  get_current_user now rejects any token *issued* before that moment
++  (new "iat" JWT claim), which invalidates every existing session at
++  once, not just the one used to reset -- verified: a session that was
++  working seconds earlier returns 401 immediately after reset, with no
++  logout call involved. Also fixed while in here: password length
++  (8-30) is now enforced server-side on signup too (UserCreate.password
++  Field constraint) -- previously only checked client-side, so a direct
++  API call could set a password outside that range.
++  Frontend: /forgot-password, /reset-password (both public in
++  middleware.ts, same reasoning as /verify-email -- opened from an
++  email, possibly with no session in that browser at all), "Forgot
++  password?" link on /login. Verified end to end including a real
++  email through Brevo.
+ - ✅ Frontend signup/login forms (first real Client Components in the app)
+ - ✅ Site gated behind login (frontend/middleware.ts): "/" is now a public
+   placeholder landing page, everything else (including /dashboard) redirects
+@@ -126,9 +164,10 @@ is low.
+ - Scrollable related-exercises section at the bottom
+ 
+ ## Programs (= "custom workouts" from the Purpose section, renamed in wireframes)
+-- User builds a Program by picking an injury; matching exercises surface
+-  ranked by effectiveness rating for that injury
+-- Programs can also be assigned to a client by their physiotherapist
++- ✅ User builds a Program by picking an injury; matching exercises surface
++  ranked by effectiveness rating for that injury (see Done section above)
++- Programs can also be assigned to a client by their physiotherapist --
++  still deferred, needs the PT role system (see Physiotherapist features)
+ 
+ ## Dashboard (from wireframes, 2026-08-25)
+ - "Your Programs" row (user's active programs, plus an "add" tile)
+diff --git a/backend/alembic/env.py b/backend/alembic/env.py
+index fe65311..4331e48 100644
+--- a/backend/alembic/env.py
++++ b/backend/alembic/env.py
+@@ -19,6 +19,9 @@ from app.models import (  # noqa: F401 -- import registers the models with Base.
+     exercise,
+     exercise_injury,
+     injury,
++    password_reset_token,
++    program,
++    program_exercise,
+     revoked_token,
+     user,
+ )
+diff --git a/backend/alembic/versions/863d5948f39d_add_password_reset.py b/backend/alembic/versions/863d5948f39d_add_password_reset.py
+new file mode 100644
+index 0000000..894ad91
+--- /dev/null
++++ b/backend/alembic/versions/863d5948f39d_add_password_reset.py
+@@ -0,0 +1,41 @@
++"""add password reset
++
++Revision ID: 863d5948f39d
++Revises: d1a3091d45ee
++Create Date: 2026-08-31 16:42:18.518039
++
++"""
++from typing import Sequence, Union
++
++from alembic import op
++import sqlalchemy as sa
++
++
++# revision identifiers, used by Alembic.
++revision: str = '863d5948f39d'
++down_revision: Union[str, None] = 'd1a3091d45ee'
++branch_labels: Union[str, Sequence[str], None] = None
++depends_on: Union[str, Sequence[str], None] = None
++
++
++def upgrade() -> None:
++    # ### commands auto generated by Alembic - please adjust! ###
++    op.create_table('password_reset_tokens',
++    sa.Column('id', sa.Integer(), nullable=False),
++    sa.Column('user_id', sa.Integer(), nullable=False),
++    sa.Column('token', sa.String(length=64), nullable=False),
++    sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
++    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
++    sa.PrimaryKeyConstraint('id')
++    )
++    op.create_index(op.f('ix_password_reset_tokens_token'), 'password_reset_tokens', ['token'], unique=True)
++    op.add_column('users', sa.Column('password_changed_at', sa.DateTime(timezone=True), nullable=True))
++    # ### end Alembic commands ###
++
++
++def downgrade() -> None:
++    # ### commands auto generated by Alembic - please adjust! ###
++    op.drop_column('users', 'password_changed_at')
++    op.drop_index(op.f('ix_password_reset_tokens_token'), table_name='password_reset_tokens')
++    op.drop_table('password_reset_tokens')
++    # ### end Alembic commands ###
+diff --git a/backend/alembic/versions/d1a3091d45ee_add_programs_and_program_exercises.py b/backend/alembic/versions/d1a3091d45ee_add_programs_and_program_exercises.py
+new file mode 100644
+index 0000000..c77a773
+--- /dev/null
++++ b/backend/alembic/versions/d1a3091d45ee_add_programs_and_program_exercises.py
+@@ -0,0 +1,50 @@
++"""add programs and program_exercises
++
++Revision ID: d1a3091d45ee
++Revises: a583c99ba9bb
++Create Date: 2026-08-30 21:52:49.518714
++
++"""
++from typing import Sequence, Union
++
++from alembic import op
++import sqlalchemy as sa
++
++
++# revision identifiers, used by Alembic.
++revision: str = 'd1a3091d45ee'
++down_revision: Union[str, None] = 'a583c99ba9bb'
++branch_labels: Union[str, Sequence[str], None] = None
++depends_on: Union[str, Sequence[str], None] = None
++
++
++def upgrade() -> None:
++    # ### commands auto generated by Alembic - please adjust! ###
++    op.create_table('programs',
++    sa.Column('id', sa.Integer(), nullable=False),
++    sa.Column('user_id', sa.Integer(), nullable=False),
++    sa.Column('name', sa.String(length=200), nullable=False),
++    sa.Column('injury_id', sa.Integer(), nullable=True),
++    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
++    sa.ForeignKeyConstraint(['injury_id'], ['injuries.id'], ),
++    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
++    sa.PrimaryKeyConstraint('id')
++    )
++    op.create_table('program_exercises',
++    sa.Column('id', sa.Integer(), nullable=False),
++    sa.Column('program_id', sa.Integer(), nullable=False),
++    sa.Column('exercise_id', sa.Integer(), nullable=False),
++    sa.Column('order_index', sa.Integer(), nullable=False),
++    sa.ForeignKeyConstraint(['exercise_id'], ['exercises.id'], ),
++    sa.ForeignKeyConstraint(['program_id'], ['programs.id'], ),
++    sa.PrimaryKeyConstraint('id'),
++    sa.UniqueConstraint('program_id', 'exercise_id', name='uq_program_exercise')
++    )
++    # ### end Alembic commands ###
++
++
++def downgrade() -> None:
++    # ### commands auto generated by Alembic - please adjust! ###
++    op.drop_table('program_exercises')
++    op.drop_table('programs')
++    # ### end Alembic commands ###
+diff --git a/backend/app/core/deps.py b/backend/app/core/deps.py
+index b90d7f5..56f2716 100644
+--- a/backend/app/core/deps.py
++++ b/backend/app/core/deps.py
+@@ -36,6 +36,12 @@ def get_current_user(
+     if user is None:
+         raise HTTPException(status_code=401, detail="Invalid or expired session")
+ 
++    # A password reset invalidates every session at once, not just future
++    # ones -- any token issued before the (re)set is now too old, even if
++    # its own signature/expiry/revocation status all check out individually.
++    if user.password_changed_at is not None and token_payload.issued_at < user.password_changed_at:
++        raise HTTPException(status_code=401, detail="Invalid or expired session")
++
+     return user
+ 
+ 
+diff --git a/backend/app/core/security.py b/backend/app/core/security.py
+index 96a2709..f587c0b 100644
+--- a/backend/app/core/security.py
++++ b/backend/app/core/security.py
+@@ -32,30 +32,34 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
+ class TokenPayload:
+     user_id: int
+     jti: str  # "JWT ID" -- a unique id for this specific token, so logout can revoke this one issuance only
++    issued_at: datetime
+     expires_at: datetime
+ 
+ 
+ def create_access_token(user_id: int) -> str:
+-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
+-    # "sub"/"jti"/"exp" are standard JWT claim names -- jwt.decode checks
+-    # "exp" against the current time automatically. "jti" is what makes
+-    # revocation possible: without it, every token from this user would
+-    # look identical, and logout could only revoke ALL of a user's
+-    # sessions at once instead of just the one being logged out of.
+-    payload = {"sub": str(user_id), "jti": uuid4().hex, "exp": expires_at}
++    issued_at = datetime.now(timezone.utc)
++    expires_at = issued_at + timedelta(minutes=settings.access_token_expire_minutes)
++    # "sub"/"jti"/"iat"/"exp" are standard JWT claim names -- jwt.decode
++    # checks "exp" against the current time automatically. "jti" is what
++    # makes single-session revocation possible (logout); "iat" is what
++    # lets a password reset invalidate every session at once (see
++    # get_current_user's password_changed_at check) without needing to
++    # know or revoke each session's jti individually.
++    payload = {"sub": str(user_id), "jti": uuid4().hex, "iat": issued_at, "exp": expires_at}
+     return jwt.encode(payload, settings.secret_key, algorithm=JWT_ALGORITHM)
+ 
+ 
+ def decode_access_token(token: str) -> TokenPayload | None:
+     """Returns the token's payload, or None if the token is missing,
+     expired, malformed, or has been tampered with (bad signature).
+-    Does NOT check revocation -- that's a separate DB lookup, done by
+-    whoever calls this (get_current_user, logout)."""
++    Does NOT check revocation or password_changed_at -- those are separate
++    checks, done by whoever calls this (get_current_user, logout)."""
+     try:
+         payload = jwt.decode(token, settings.secret_key, algorithms=[JWT_ALGORITHM])
+         return TokenPayload(
+             user_id=int(payload["sub"]),
+             jti=payload["jti"],
++            issued_at=datetime.fromtimestamp(payload["iat"], tz=timezone.utc),
+             expires_at=datetime.fromtimestamp(payload["exp"], tz=timezone.utc),
+         )
+     except (jwt.PyJWTError, KeyError, ValueError):
+diff --git a/backend/app/main.py b/backend/app/main.py
+index 40c2526..3e13db1 100644
+--- a/backend/app/main.py
++++ b/backend/app/main.py
+@@ -6,7 +6,7 @@ from slowapi.middleware import SlowAPIMiddleware
+ 
+ from app.core.config import settings
+ from app.core.limiter import limiter
+-from app.routers import auth, exercises, health, injuries
++from app.routers import auth, exercises, health, injuries, programs
+ 
+ app = FastAPI(title="ezex API")
+ 
+@@ -26,3 +26,4 @@ app.include_router(health.router)
+ app.include_router(exercises.router)
+ app.include_router(injuries.router)
+ app.include_router(auth.router)
++app.include_router(programs.router)
+diff --git a/backend/app/models/password_reset_token.py b/backend/app/models/password_reset_token.py
+new file mode 100644
+index 0000000..68fe6bd
+--- /dev/null
++++ b/backend/app/models/password_reset_token.py
+@@ -0,0 +1,21 @@
++"""
++PasswordResetToken: same shape and reasoning as EmailVerificationToken --
++a random single-use token emailed to prove the requester owns that inbox,
++this time authorizing a password change instead of marking an email verified.
++"""
++
++from datetime import datetime
++
++from sqlalchemy import DateTime, ForeignKey, String
++from sqlalchemy.orm import Mapped, mapped_column
++
++from app.core.database import Base
++
++
++class PasswordResetToken(Base):
++    __tablename__ = "password_reset_tokens"
++
++    id: Mapped[int] = mapped_column(primary_key=True)
++    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
++    token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
++    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+diff --git a/backend/app/models/program.py b/backend/app/models/program.py
+new file mode 100644
+index 0000000..4e5c3f2
+--- /dev/null
++++ b/backend/app/models/program.py
+@@ -0,0 +1,35 @@
++"""
++Program: a user's saved collection of exercises -- the "custom workout"
++feature. Owned by exactly one user (see routers/programs.py for the
++ownership check every endpoint does -- this is the first model in the app
++where "which user does this belong to" actually matters).
++"""
++
++from datetime import datetime
++
++from sqlalchemy import DateTime, ForeignKey, String, func
++from sqlalchemy.orm import Mapped, mapped_column, relationship
++
++from app.core.database import Base
++
++
++class Program(Base):
++    __tablename__ = "programs"
++
++    id: Mapped[int] = mapped_column(primary_key=True)
++    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
++    name: Mapped[str] = mapped_column(String(200), nullable=False)
++    # The injury this program was originally built around, if any -- just
++    # context for display. Doesn't restrict what exercises actually end up
++    # in the program; those can be added/removed freely afterward.
++    injury_id: Mapped[int | None] = mapped_column(ForeignKey("injuries.id"), nullable=True)
++
++    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
++
++    # cascade="all, delete-orphan": deleting a Program deletes its
++    # ProgramExercise rows too -- without this, delete_program() would hit
++    # the same FK-violation error we saw earlier deleting users that still
++    # had email_verification_tokens pointing at them.
++    exercise_links: Mapped[list["ProgramExercise"]] = relationship(
++        back_populates="program", order_by="ProgramExercise.order_index", cascade="all, delete-orphan"
++    )
+diff --git a/backend/app/models/program_exercise.py b/backend/app/models/program_exercise.py
+new file mode 100644
+index 0000000..9624ba8
+--- /dev/null
++++ b/backend/app/models/program_exercise.py
+@@ -0,0 +1,24 @@
++"""
++ProgramExercise: the join table a Program <-> Exercise many-to-many
++relationship requires (one Program has many Exercises; one Exercise can
++sit in many different users' Programs) -- carries order_index, the
++position of this exercise within this specific program.
++"""
++
++from sqlalchemy import ForeignKey, UniqueConstraint
++from sqlalchemy.orm import Mapped, mapped_column, relationship
++
++from app.core.database import Base
++
++
++class ProgramExercise(Base):
++    __tablename__ = "program_exercises"
++    __table_args__ = (UniqueConstraint("program_id", "exercise_id", name="uq_program_exercise"),)
++
++    id: Mapped[int] = mapped_column(primary_key=True)
++    program_id: Mapped[int] = mapped_column(ForeignKey("programs.id"), nullable=False)
++    exercise_id: Mapped[int] = mapped_column(ForeignKey("exercises.id"), nullable=False)
++    order_index: Mapped[int] = mapped_column(nullable=False)
++
++    program: Mapped["Program"] = relationship(back_populates="exercise_links")
++    exercise: Mapped["Exercise"] = relationship()
+diff --git a/backend/app/models/user.py b/backend/app/models/user.py
+index c22e50c..5317039 100644
+--- a/backend/app/models/user.py
++++ b/backend/app/models/user.py
+@@ -20,5 +20,9 @@ class User(Base):
+     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+     # never store the plain password -- only bcrypt's hash of it, see core/security.py
+     is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
++    # Null until the first password reset. get_current_user rejects any
++    # token *issued* before this -- resetting your password invalidates
++    # every existing session at once, not just future ones.
++    password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+ 
+     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+diff --git a/backend/app/routers/auth.py b/backend/app/routers/auth.py
+index ef2b1ff..9a1da56 100644
+--- a/backend/app/routers/auth.py
++++ b/backend/app/routers/auth.py
+@@ -14,8 +14,15 @@ from app.core.security import (
+     verify_password,
+ )
+ from app.models.user import User
+-from app.schemas.user import UserCreate, UserLogin, UserRead, UserWithCsrf
+-from app.services import email_verification_service, token_service, user_service
++from app.schemas.user import (
++    ForgotPasswordRequest,
++    ResetPasswordRequest,
++    UserCreate,
++    UserLogin,
++    UserRead,
++    UserWithCsrf,
++)
++from app.services import email_verification_service, password_reset_service, token_service, user_service
+ 
+ router = APIRouter(prefix="/auth", tags=["auth"])
+ 
+@@ -117,3 +124,25 @@ def resend_verification(
+     if not email_verification_service.send_verification_email(db, current_user):
+         raise HTTPException(status_code=502, detail="Failed to send verification email, please try again later")
+     return {"detail": "Verification email sent"}
++
++
++@router.post("/forgot-password")
++@limiter.limit("5/minute")
++def forgot_password(request: Request, payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
++    user = user_service.get_user_by_email(db, payload.email)
++    # Always the same response whether or not that email is registered --
++    # same user-enumeration protection as login's shared error message.
++    # Sending is best-effort: a real SMTP failure here shouldn't reveal
++    # anything different to the caller than "that email doesn't exist" would.
++    if user is not None:
++        password_reset_service.send_reset_email(db, user)
++    return {"detail": "If that email is registered, a reset link has been sent."}
++
++
++@router.post("/reset-password")
++@limiter.limit("5/minute")
++def reset_password(request: Request, payload: ResetPasswordRequest, db: Session = Depends(get_db)):
++    user = password_reset_service.reset_password(db, payload.token, payload.new_password)
++    if user is None:
++        raise HTTPException(status_code=400, detail="Invalid or expired reset link")
++    return {"detail": "Password reset. You can now log in with your new password."}
+diff --git a/backend/app/routers/programs.py b/backend/app/routers/programs.py
+new file mode 100644
+index 0000000..1952e67
+--- /dev/null
++++ b/backend/app/routers/programs.py
+@@ -0,0 +1,107 @@
++from fastapi import APIRouter, Depends, HTTPException
++from sqlalchemy.orm import Session
++
++from app.core.database import get_db
++from app.core.deps import get_current_verified_user, require_csrf
++from app.models.user import User
++from app.schemas.exercise import ExerciseRead
++from app.schemas.program import AddExerciseRequest, ProgramCreate, ProgramDetail, ProgramRead
++from app.services import exercise_service, program_service
++
++router = APIRouter(prefix="/programs", tags=["programs"])
++
++
++def _to_detail(program) -> dict:
++    return {
++        **ProgramRead.model_validate(program).model_dump(),
++        "exercises": [
++            {
++                "order_index": link.order_index,
++                "exercise": ExerciseRead.model_validate(link.exercise).model_dump(),
++            }
++            for link in program.exercise_links
++        ],
++    }
++
++
++def _get_owned_or_404(db: Session, program_id: int, user: User):
++    program = program_service.get_owned_program(db, program_id, user.id)
++    if program is None:
++        # Same 404 whether the program doesn't exist or just isn't yours --
++        # a 403 here would confirm to a stranger that the ID belongs to
++        # *someone*, which a 404 doesn't.
++        raise HTTPException(status_code=404, detail="Program not found")
++    return program
++
++
++@router.post("", response_model=ProgramRead, status_code=201)
++def create_program(
++    payload: ProgramCreate,
++    db: Session = Depends(get_db),
++    current_user: User = Depends(get_current_verified_user),
++    _csrf_ok: None = Depends(require_csrf),
++):
++    return program_service.create_program(db, current_user.id, payload.name, payload.injury_id)
++
++
++@router.get("", response_model=list[ProgramRead])
++def list_programs(db: Session = Depends(get_db), current_user: User = Depends(get_current_verified_user)):
++    return program_service.list_programs(db, current_user.id)
++
++
++@router.get("/{program_id}", response_model=ProgramDetail)
++def get_program(
++    program_id: int,
++    db: Session = Depends(get_db),
++    current_user: User = Depends(get_current_verified_user),
++):
++    program = _get_owned_or_404(db, program_id, current_user)
++    return _to_detail(program)
++
++
++@router.post("/{program_id}/exercises", response_model=ProgramDetail)
++def add_exercise(
++    program_id: int,
++    payload: AddExerciseRequest,
++    db: Session = Depends(get_db),
++    current_user: User = Depends(get_current_verified_user),
++    _csrf_ok: None = Depends(require_csrf),
++):
++    program = _get_owned_or_404(db, program_id, current_user)
++    if exercise_service.get_exercise(db, payload.exercise_id) is None:
++        raise HTTPException(status_code=404, detail="Exercise not found")
++
++    already_in = any(link.exercise_id == payload.exercise_id for link in program.exercise_links)
++    if already_in:
++        raise HTTPException(status_code=409, detail="Exercise already in this program")
++
++    program_service.add_exercise(db, program, payload.exercise_id)
++    db.refresh(program)
++    return _to_detail(program)
++
++
++@router.delete("/{program_id}/exercises/{exercise_id}", response_model=ProgramDetail)
++def remove_exercise(
++    program_id: int,
++    exercise_id: int,
++    db: Session = Depends(get_db),
++    current_user: User = Depends(get_current_verified_user),
++    _csrf_ok: None = Depends(require_csrf),
++):
++    program = _get_owned_or_404(db, program_id, current_user)
++    if not program_service.remove_exercise(db, program, exercise_id):
++        raise HTTPException(status_code=404, detail="Exercise not in this program")
++    db.refresh(program)
++    return _to_detail(program)
++
++
++@router.delete("/{program_id}")
++def delete_program(
++    program_id: int,
++    db: Session = Depends(get_db),
++    current_user: User = Depends(get_current_verified_user),
++    _csrf_ok: None = Depends(require_csrf),
++):
++    program = _get_owned_or_404(db, program_id, current_user)
++    program_service.delete_program(db, program)
++    return {"detail": "Program deleted"}
+diff --git a/backend/app/schemas/program.py b/backend/app/schemas/program.py
+new file mode 100644
+index 0000000..99dda75
+--- /dev/null
++++ b/backend/app/schemas/program.py
+@@ -0,0 +1,35 @@
++from datetime import datetime
++
++from pydantic import BaseModel, ConfigDict, Field
++
++from app.schemas.exercise import ExerciseRead
++
++MIN_PROGRAM_NAME_LENGTH = 4
++MAX_PROGRAM_NAME_LENGTH = 25
++
++
++class ProgramCreate(BaseModel):
++    name: str = Field(min_length=MIN_PROGRAM_NAME_LENGTH, max_length=MAX_PROGRAM_NAME_LENGTH)
++    injury_id: int | None = None  # if given, bulk-adds that injury's exercises, ranked by effectiveness
++
++
++class ProgramRead(BaseModel):
++    model_config = ConfigDict(from_attributes=True)
++
++    id: int
++    name: str
++    injury_id: int | None
++    created_at: datetime
++
++
++class ProgramExerciseRead(BaseModel):
++    order_index: int
++    exercise: ExerciseRead
++
++
++class ProgramDetail(ProgramRead):
++    exercises: list[ProgramExerciseRead]
++
++
++class AddExerciseRequest(BaseModel):
++    exercise_id: int
+diff --git a/backend/app/schemas/user.py b/backend/app/schemas/user.py
+index bb25cd2..b28531d 100644
+--- a/backend/app/schemas/user.py
++++ b/backend/app/schemas/user.py
+@@ -1,11 +1,18 @@
+ from datetime import datetime
+ 
+-from pydantic import BaseModel, ConfigDict, EmailStr
++from pydantic import BaseModel, ConfigDict, EmailStr, Field
++
++# Was previously only enforced client-side (frontend/lib/validation.ts) --
++# a direct API call could set a password outside this range. Same bounds,
++# now also checked server-side, which is the copy that actually matters.
++MIN_PASSWORD_LENGTH = 8
++MAX_PASSWORD_LENGTH = 30
+ 
+ 
+ class UserCreate(BaseModel):
+     email: EmailStr
+-    password: str  # plain text, only ever in the incoming request -- never stored or returned
++    # plain text, only ever in the incoming request -- never stored or returned
++    password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=MAX_PASSWORD_LENGTH)
+ 
+ 
+ class UserLogin(BaseModel):
+@@ -32,3 +39,12 @@ class UserWithCsrf(UserRead):
+     back a token tied to one."""
+ 
+     csrf_token: str
++
++
++class ForgotPasswordRequest(BaseModel):
++    email: EmailStr
++
++
++class ResetPasswordRequest(BaseModel):
++    token: str
++    new_password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=MAX_PASSWORD_LENGTH)
+diff --git a/backend/app/services/password_reset_service.py b/backend/app/services/password_reset_service.py
+new file mode 100644
+index 0000000..a3b246a
+--- /dev/null
++++ b/backend/app/services/password_reset_service.py
+@@ -0,0 +1,64 @@
++import secrets
++from datetime import datetime, timedelta, timezone
++
++from sqlalchemy import select
++from sqlalchemy.orm import Session
++
++from app.core.config import settings
++from app.core.email import send_email
++from app.core.security import hash_password
++from app.models.password_reset_token import PasswordResetToken
++from app.models.user import User
++
++TOKEN_EXPIRE_HOURS = 1
++
++
++def send_reset_email(db: Session, user: User) -> bool:
++    """Same shape as email_verification_service.send_verification_email --
++    returns True if the email actually sent, since an SMTP failure is a
++    real possibility the caller needs to know about, not crash on."""
++    token = secrets.token_urlsafe(32)
++    expires_at = datetime.now(timezone.utc) + timedelta(hours=TOKEN_EXPIRE_HOURS)
++    db.add(PasswordResetToken(user_id=user.id, token=token, expires_at=expires_at))
++    db.commit()
++
++    reset_url = f"{settings.frontend_url}/reset-password?token={token}"
++    try:
++        send_email(
++            to=user.email,
++            subject="Reset your EZEx password",
++            body=(
++                f"Click the link below to set a new password:\n\n{reset_url}\n\n"
++                f"This link expires in {TOKEN_EXPIRE_HOURS} hour{'' if TOKEN_EXPIRE_HOURS == 1 else 's'}. "
++                f"If you didn't request this, you can safely ignore this email."
++            ),
++        )
++        return True
++    except Exception as e:
++        print(f"Failed to send password reset email to {user.email}: {e}")
++        return False
++
++
++def reset_password(db: Session, token: str, new_password: str) -> User | None:
++    """Consumes the token (deletes it either way) and sets the new
++    password. Returns the user on success, None if the token is
++    missing/expired. Also stamps password_changed_at, which
++    core/deps.py's get_current_user uses to invalidate every session
++    issued before this moment -- not just future ones."""
++    record = db.scalar(select(PasswordResetToken).where(PasswordResetToken.token == token))
++    if record is None:
++        return None
++
++    user = db.get(User, record.user_id)
++    is_expired = record.expires_at < datetime.now(timezone.utc)
++
++    db.delete(record)  # single-use either way -- a used or expired token shouldn't work twice
++    db.commit()
++
++    if is_expired or user is None:
++        return None
++
++    user.hashed_password = hash_password(new_password)
++    user.password_changed_at = datetime.now(timezone.utc)
++    db.commit()
++    return user
+diff --git a/backend/app/services/program_service.py b/backend/app/services/program_service.py
+new file mode 100644
+index 0000000..05346ac
+--- /dev/null
++++ b/backend/app/services/program_service.py
+@@ -0,0 +1,61 @@
++from sqlalchemy import select
++from sqlalchemy.orm import Session
++
++from app.models.program import Program
++from app.models.program_exercise import ProgramExercise
++from app.services import injury_service
++
++
++def create_program(db: Session, user_id: int, name: str, injury_id: int | None) -> Program:
++    program = Program(user_id=user_id, name=name, injury_id=injury_id)
++    db.add(program)
++    db.flush()  # assigns program.id without committing yet, needed below
++
++    if injury_id is not None:
++        # Bulk-add that injury's exercises, ranked by effectiveness --
++        # matches the "pick an injury, get suggested exercises" flow.
++        links = injury_service.get_exercises_for_injury(db, injury_id)
++        for order_index, link in enumerate(links):
++            db.add(ProgramExercise(program_id=program.id, exercise_id=link.exercise_id, order_index=order_index))
++
++    db.commit()
++    db.refresh(program)
++    return program
++
++
++def list_programs(db: Session, user_id: int) -> list[Program]:
++    return list(db.scalars(select(Program).where(Program.user_id == user_id).order_by(Program.id)))
++
++
++def get_owned_program(db: Session, program_id: int, user_id: int) -> Program | None:
++    """Returns None for both "doesn't exist" and "exists but isn't yours"
++    -- indistinguishable on purpose, so a stranger probing IDs can't even
++    confirm a given program exists."""
++    return db.scalar(select(Program).where(Program.id == program_id, Program.user_id == user_id))
++
++
++def add_exercise(db: Session, program: Program, exercise_id: int) -> ProgramExercise:
++    next_index = len(program.exercise_links)
++    link = ProgramExercise(program_id=program.id, exercise_id=exercise_id, order_index=next_index)
++    db.add(link)
++    db.commit()
++    db.refresh(link)
++    return link
++
++
++def remove_exercise(db: Session, program: Program, exercise_id: int) -> bool:
++    link = db.scalar(
++        select(ProgramExercise).where(
++            ProgramExercise.program_id == program.id, ProgramExercise.exercise_id == exercise_id
++        )
++    )
++    if link is None:
++        return False
++    db.delete(link)
++    db.commit()
++    return True
++
++
++def delete_program(db: Session, program: Program) -> None:
++    db.delete(program)
++    db.commit()
+diff --git a/frontend/app/dashboard/page.tsx b/frontend/app/dashboard/page.tsx
+index 732d196..e2853f5 100644
+--- a/frontend/app/dashboard/page.tsx
++++ b/frontend/app/dashboard/page.tsx
+@@ -1,4 +1,4 @@
+-import { getExercises, getGeneralParts, getInjuries } from "@/lib/api";
++import { getExercises, getGeneralParts, getInjuries, getPrograms } from "@/lib/api";
+ import { getAuthCookieHeader } from "@/lib/server-auth";
+ 
+ export default async function DashboardPage({
+@@ -8,10 +8,11 @@ export default async function DashboardPage({
+ }) {
+   const { q } = await searchParams;
+   const cookieHeader = await getAuthCookieHeader();
+-  const [exercises, injuries, generalParts] = await Promise.all([
++  const [exercises, injuries, generalParts, programs] = await Promise.all([
+     getExercises(q, cookieHeader),
+     getInjuries(cookieHeader),
+     getGeneralParts(cookieHeader),
++    getPrograms(cookieHeader),
+   ]);
+ 
+   return (
+@@ -20,6 +21,29 @@ export default async function DashboardPage({
+         Exercises
+       </h1>
+ 
++      <div className="mt-4">
++        <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">
++          Your Programs
++        </p>
++        <div className="mt-2 flex flex-wrap gap-2">
++          {programs.map((program) => (
++            <a
++              key={program.id}
++              href={`/programs/${program.id}`}
++              className="rounded-full border border-zinc-200 px-3 py-1 text-sm text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
++            >
++              {program.name}
++            </a>
++          ))}
++          <a
++            href="/programs/new"
++            className="rounded-full border border-dashed border-zinc-300 px-3 py-1 text-sm text-zinc-500 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
++          >
++            + New Program
++          </a>
++        </div>
++      </div>
++
+       {/* Plain GET form -- submitting navigates to /dashboard?q=..., which the
+           Server Component above reads via searchParams. No client-side
+           JS/state needed, unlike a typical React controlled-input search. */}
+diff --git a/frontend/app/exercises/[id]/page.tsx b/frontend/app/exercises/[id]/page.tsx
+index 8c1b67b..f1732ba 100644
+--- a/frontend/app/exercises/[id]/page.tsx
++++ b/frontend/app/exercises/[id]/page.tsx
+@@ -1,7 +1,8 @@
+ import { notFound } from "next/navigation";
+ 
+-import { getExercise } from "@/lib/api";
++import { getExercise, getPrograms } from "@/lib/api";
+ import { getAuthCookieHeader } from "@/lib/server-auth";
++import AddToProgramButton from "@/components/AddToProgramButton";
+ 
+ export default async function ExercisePage({
+   params,
+@@ -10,7 +11,10 @@ export default async function ExercisePage({
+ }) {
+   const { id } = await params;
+   const cookieHeader = await getAuthCookieHeader();
+-  const exercise = await getExercise(Number(id), cookieHeader);
++  const [exercise, programs] = await Promise.all([
++    getExercise(Number(id), cookieHeader),
++    getPrograms(cookieHeader),
++  ]);
+ 
+   if (!exercise) {
+     notFound();
+@@ -34,6 +38,8 @@ export default async function ExercisePage({
+         {exercise.general_part} / {exercise.body_part}
+       </p>
+ 
++      <AddToProgramButton exerciseId={exercise.id} programs={programs} />
++
+       {exercise.video_url && (
+         <video controls className="mt-6 w-full rounded-lg bg-black">
+           <source src={exercise.video_url} />
+diff --git a/frontend/app/forgot-password/page.tsx b/frontend/app/forgot-password/page.tsx
+new file mode 100644
+index 0000000..374248a
+--- /dev/null
++++ b/frontend/app/forgot-password/page.tsx
+@@ -0,0 +1,74 @@
++"use client";
++
++import { useState } from "react";
++
++import { forgotPassword } from "@/lib/api";
++import { isValidEmail } from "@/lib/validation";
++
++export default function ForgotPasswordPage() {
++  const [email, setEmail] = useState("");
++  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
++  const [error, setError] = useState<string | null>(null);
++
++  async function handleSubmit(e: React.FormEvent) {
++    e.preventDefault();
++    setError(null);
++
++    if (!isValidEmail(email)) {
++      setError("Invalid email entered.");
++      return;
++    }
++
++    setStatus("sending");
++    try {
++      await forgotPassword(email);
++      setStatus("sent");
++    } catch (err) {
++      setStatus("error");
++      setError(err instanceof Error ? err.message : "Failed to request password reset");
++    }
++  }
++
++  return (
++    <main className="mx-auto w-full max-w-sm px-6 py-16">
++      <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
++        Reset your password
++      </h1>
++
++      {status === "sent" ? (
++        <p className="mt-4 text-zinc-500">
++          If that email is registered, a reset link has been sent. Check your inbox (and spam folder).
++        </p>
++      ) : (
++        <form onSubmit={handleSubmit} noValidate className="mt-6 flex w-full min-w-0 flex-col gap-4">
++          <input
++            type="email"
++            required
++            value={email}
++            onChange={(e) => setEmail(e.target.value)}
++            placeholder="Email"
++            className="w-full min-w-0 rounded-lg border border-zinc-200 px-4 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-900"
++          />
++          {error && (
++            <p className="w-full min-w-0 text-sm break-words text-red-600 dark:text-red-400">
++              {error}
++            </p>
++          )}
++          <button
++            type="submit"
++            disabled={status === "sending"}
++            className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900"
++          >
++            {status === "sending" ? "Sending..." : "Send reset link"}
++          </button>
++        </form>
++      )}
++
++      <p className="mt-4 text-sm text-zinc-500">
++        <a href="/login" className="text-zinc-700 hover:underline dark:text-zinc-300">
++          Back to log in
++        </a>
++      </p>
++    </main>
++  );
++}
+diff --git a/frontend/app/login/page.tsx b/frontend/app/login/page.tsx
+index 414afbd..9cebd92 100644
+--- a/frontend/app/login/page.tsx
++++ b/frontend/app/login/page.tsx
+@@ -84,6 +84,11 @@ export default function LoginPage() {
+           Sign up
+         </a>
+       </p>
++      <p className="mt-2 text-sm text-zinc-500">
++        <a href="/forgot-password" className="text-zinc-700 hover:underline dark:text-zinc-300">
++          Forgot password?
++        </a>
++      </p>
+     </main>
+   );
+ }
+diff --git a/frontend/app/programs/[id]/page.tsx b/frontend/app/programs/[id]/page.tsx
+new file mode 100644
+index 0000000..95d2aed
+--- /dev/null
++++ b/frontend/app/programs/[id]/page.tsx
+@@ -0,0 +1,28 @@
++import { notFound } from "next/navigation";
++
++import { getProgram } from "@/lib/api";
++import { getAuthCookieHeader } from "@/lib/server-auth";
++import ProgramDetailView from "@/components/ProgramDetailView";
++
++export default async function ProgramPage({
++  params,
++}: {
++  params: Promise<{ id: string }>;
++}) {
++  const { id } = await params;
++  const cookieHeader = await getAuthCookieHeader();
++  const program = await getProgram(Number(id), cookieHeader);
++
++  if (!program) {
++    notFound();
++  }
++
++  return (
++    <main className="mx-auto max-w-2xl px-6 py-16">
++      <a href="/dashboard" className="text-sm text-zinc-500 hover:underline">
++        &larr; All exercises
++      </a>
++      <ProgramDetailView program={program} />
++    </main>
++  );
++}
+diff --git a/frontend/app/programs/new/page.tsx b/frontend/app/programs/new/page.tsx
+new file mode 100644
+index 0000000..08ceb0a
+--- /dev/null
++++ b/frontend/app/programs/new/page.tsx
+@@ -0,0 +1,15 @@
++import { getInjuries } from "@/lib/api";
++import { getAuthCookieHeader } from "@/lib/server-auth";
++import NewProgramForm from "@/components/NewProgramForm";
++
++export default async function NewProgramPage() {
++  const cookieHeader = await getAuthCookieHeader();
++  const injuries = await getInjuries(cookieHeader);
++
++  return (
++    <main className="mx-auto w-full max-w-sm px-6 py-16">
++      <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">New Program</h1>
++      <NewProgramForm injuries={injuries} />
++    </main>
++  );
++}
+diff --git a/frontend/app/reset-password/page.tsx b/frontend/app/reset-password/page.tsx
+new file mode 100644
+index 0000000..a172e9f
+--- /dev/null
++++ b/frontend/app/reset-password/page.tsx
+@@ -0,0 +1,110 @@
++"use client";
++
++import { Suspense, useState } from "react";
++import { useSearchParams } from "next/navigation";
++
++import { resetPassword } from "@/lib/api";
++import { isValidPasswordLength, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "@/lib/validation";
++
++// useSearchParams() requires a Suspense boundary in the App Router --
++// split into an inner component so the page itself can wrap it.
++function ResetPasswordContent() {
++  const searchParams = useSearchParams();
++  const token = searchParams.get("token");
++
++  const [password, setPassword] = useState("");
++  const [confirmPassword, setConfirmPassword] = useState("");
++  const [error, setError] = useState<string | null>(null);
++  const [submitting, setSubmitting] = useState(false);
++  const [done, setDone] = useState(false);
++
++  async function handleSubmit(e: React.FormEvent) {
++    e.preventDefault();
++    setError(null);
++
++    if (!token) {
++      setError("Missing reset token.");
++      return;
++    }
++    if (!isValidPasswordLength(password)) {
++      setError(
++        `Invalid password. Please ensure password is between ${MIN_PASSWORD_LENGTH}-${MAX_PASSWORD_LENGTH} characters long.`
++      );
++      return;
++    }
++    if (password !== confirmPassword) {
++      setError("Passwords don't match.");
++      return;
++    }
++
++    setSubmitting(true);
++    try {
++      await resetPassword(token, password);
++      setDone(true);
++    } catch (err) {
++      setError(err instanceof Error ? err.message : "Failed to reset password");
++      setSubmitting(false);
++    }
++  }
++
++  if (done) {
++    return (
++      <>
++        <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Password reset</h1>
++        <p className="mt-2 text-zinc-500">
++          Every previous session on this account has been signed out, including this one.
++        </p>
++        <a
++          href="/login"
++          className="mt-6 inline-block rounded-full bg-zinc-900 px-6 py-3 text-sm font-medium text-white dark:bg-zinc-50 dark:text-zinc-900"
++        >
++          Log in
++        </a>
++      </>
++    );
++  }
++
++  return (
++    <>
++      <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Set a new password</h1>
++      <form onSubmit={handleSubmit} noValidate className="mt-6 flex w-full min-w-0 flex-col gap-4">
++        <input
++          type="password"
++          required
++          value={password}
++          onChange={(e) => setPassword(e.target.value)}
++          placeholder="New password"
++          className="w-full min-w-0 rounded-lg border border-zinc-200 px-4 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-900"
++        />
++        <input
++          type="password"
++          required
++          value={confirmPassword}
++          onChange={(e) => setConfirmPassword(e.target.value)}
++          placeholder="Confirm new password"
++          className="w-full min-w-0 rounded-lg border border-zinc-200 px-4 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-900"
++        />
++        {error && (
++          <p className="w-full min-w-0 text-sm break-words text-red-600 dark:text-red-400">{error}</p>
++        )}
++        <button
++          type="submit"
++          disabled={submitting}
++          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900"
++        >
++          {submitting ? "Resetting..." : "Reset password"}
++        </button>
++      </form>
++    </>
++  );
++}
++
++export default function ResetPasswordPage() {
++  return (
++    <main className="mx-auto w-full max-w-sm px-6 py-16">
++      <Suspense fallback={<p className="text-zinc-500">Loading...</p>}>
++        <ResetPasswordContent />
++      </Suspense>
++    </main>
++  );
++}
+diff --git a/frontend/components/AddToProgramButton.tsx b/frontend/components/AddToProgramButton.tsx
+new file mode 100644
+index 0000000..e24d29b
+--- /dev/null
++++ b/frontend/components/AddToProgramButton.tsx
+@@ -0,0 +1,73 @@
++"use client";
++
++import { useState } from "react";
++
++import { addExerciseToProgram } from "@/lib/api";
++import { Program } from "@/types/program";
++
++export default function AddToProgramButton({
++  exerciseId,
++  programs,
++}: {
++  exerciseId: number;
++  programs: Program[];
++}) {
++  const [selectedId, setSelectedId] = useState<string>(programs[0] ? String(programs[0].id) : "");
++  const [status, setStatus] = useState<"idle" | "adding" | "added" | "error">("idle");
++  const [error, setError] = useState<string | null>(null);
++
++  if (programs.length === 0) {
++    return (
++      <a
++        href="/programs/new"
++        className="mt-4 inline-block text-sm text-zinc-500 hover:underline"
++      >
++        Create a program to add this exercise to
++      </a>
++    );
++  }
++
++  async function handleAdd() {
++    setStatus("adding");
++    setError(null);
++    try {
++      await addExerciseToProgram(Number(selectedId), exerciseId);
++      setStatus("added");
++    } catch (err) {
++      setStatus("error");
++      setError(err instanceof Error ? err.message : "Failed to add exercise");
++    }
++  }
++
++  return (
++    <div className="mt-4 flex flex-wrap items-center gap-2">
++      <select
++        value={selectedId}
++        onChange={(e) => {
++          setSelectedId(e.target.value);
++          setStatus("idle");
++        }}
++        className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm dark:border-zinc-800 dark:bg-zinc-900"
++      >
++        {programs.map((program) => (
++          <option key={program.id} value={program.id}>
++            {program.name}
++          </option>
++        ))}
++      </select>
++      <button
++        onClick={handleAdd}
++        disabled={status === "adding"}
++        className="rounded-full border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-700 disabled:opacity-50 dark:border-zinc-800 dark:text-zinc-300"
++      >
++        {status === "adding" ? "Adding..." : "Add to program"}
++      </button>
++      {status === "added" && (
++        <span className="text-sm text-green-600 dark:text-green-400">Added!</span>
++      )}
++      {status === "error" && (
++        <span className="text-sm text-red-600 dark:text-red-400">{error}</span>
++      )}
++    </div>
++  );
++}
+diff --git a/frontend/components/NewProgramForm.tsx b/frontend/components/NewProgramForm.tsx
+new file mode 100644
+index 0000000..0b55e02
+--- /dev/null
++++ b/frontend/components/NewProgramForm.tsx
+@@ -0,0 +1,83 @@
++"use client";
++
++import { useState } from "react";
++
++import { createProgram } from "@/lib/api";
++import {
++  isValidProgramName,
++  MAX_PROGRAM_NAME_LENGTH,
++  MIN_PROGRAM_NAME_LENGTH,
++} from "@/lib/validation";
++import { Injury } from "@/types/injury";
++
++export default function NewProgramForm({ injuries }: { injuries: Injury[] }) {
++  const [name, setName] = useState("");
++  const [injuryId, setInjuryId] = useState<string>("");
++  const [error, setError] = useState<string | null>(null);
++  const [submitting, setSubmitting] = useState(false);
++
++  async function handleSubmit(e: React.FormEvent) {
++    e.preventDefault();
++    setError(null);
++
++    if (!isValidProgramName(name.trim())) {
++      setError(
++        `Program name must be between ${MIN_PROGRAM_NAME_LENGTH}-${MAX_PROGRAM_NAME_LENGTH} characters long.`
++      );
++      return;
++    }
++
++    setSubmitting(true);
++    try {
++      const program = await createProgram(name.trim(), injuryId ? Number(injuryId) : undefined);
++      window.location.href = `/programs/${program.id}`;
++    } catch (err) {
++      setError(err instanceof Error ? err.message : "Failed to create program");
++      setSubmitting(false);
++    }
++  }
++
++  return (
++    <form onSubmit={handleSubmit} noValidate className="mt-6 flex w-full min-w-0 flex-col gap-4">
++      <input
++        type="text"
++        required
++        maxLength={MAX_PROGRAM_NAME_LENGTH}
++        value={name}
++        onChange={(e) => setName(e.target.value)}
++        placeholder="Program name"
++        className="w-full min-w-0 rounded-lg border border-zinc-200 px-4 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-900"
++      />
++
++      <label className="text-sm text-zinc-500">
++        Build from an injury (optional)
++        <select
++          value={injuryId}
++          onChange={(e) => setInjuryId(e.target.value)}
++          className="mt-1 w-full rounded-lg border border-zinc-200 px-4 py-2 text-sm capitalize dark:border-zinc-800 dark:bg-zinc-900"
++        >
++          <option value="">None -- start empty</option>
++          {injuries.map((injury) => (
++            <option key={injury.id} value={injury.id} className="capitalize">
++              {injury.name}
++            </option>
++          ))}
++        </select>
++      </label>
++      <p className="text-xs text-zinc-500">
++        Picking an injury automatically adds every exercise ranked for it, most effective first.
++        You can add or remove exercises afterward either way.
++      </p>
++
++      {error && <p className="w-full min-w-0 text-sm break-words text-red-600 dark:text-red-400">{error}</p>}
++
++      <button
++        type="submit"
++        disabled={submitting}
++        className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900"
++      >
++        {submitting ? "Creating..." : "Create Program"}
++      </button>
++    </form>
++  );
++}
+diff --git a/frontend/components/ProgramDetailView.tsx b/frontend/components/ProgramDetailView.tsx
+new file mode 100644
+index 0000000..63581cd
+--- /dev/null
++++ b/frontend/components/ProgramDetailView.tsx
+@@ -0,0 +1,83 @@
++"use client";
++
++import { useState } from "react";
++
++import { deleteProgram, removeExerciseFromProgram } from "@/lib/api";
++import { ProgramDetail } from "@/types/program";
++
++export default function ProgramDetailView({ program: initialProgram }: { program: ProgramDetail }) {
++  const [program, setProgram] = useState(initialProgram);
++  const [error, setError] = useState<string | null>(null);
++  const [busy, setBusy] = useState(false);
++
++  async function handleRemove(exerciseId: number) {
++    setError(null);
++    setBusy(true);
++    try {
++      const updated = await removeExerciseFromProgram(program.id, exerciseId);
++      setProgram(updated);
++    } catch (err) {
++      setError(err instanceof Error ? err.message : "Failed to remove exercise");
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  async function handleDeleteProgram() {
++    setError(null);
++    setBusy(true);
++    try {
++      await deleteProgram(program.id);
++      window.location.href = "/dashboard";
++    } catch (err) {
++      setError(err instanceof Error ? err.message : "Failed to delete program");
++      setBusy(false);
++    }
++  }
++
++  return (
++    <>
++      <div className="mt-2 flex items-start justify-between">
++        <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">{program.name}</h1>
++        <button
++          onClick={handleDeleteProgram}
++          disabled={busy}
++          className="text-sm text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
++        >
++          Delete Program
++        </button>
++      </div>
++
++      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
++
++      {program.exercises.length === 0 ? (
++        <p className="mt-4 text-zinc-500">No exercises in this program yet.</p>
++      ) : (
++        <ul className="mt-6 flex flex-col gap-4">
++          {program.exercises.map(({ exercise }) => (
++            <li
++              key={exercise.id}
++              className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
++            >
++              <div className="flex items-center justify-between">
++                <a href={`/exercises/${exercise.id}`} className="font-medium hover:underline">
++                  {exercise.name}
++                </a>
++                <button
++                  onClick={() => handleRemove(exercise.id)}
++                  disabled={busy}
++                  className="text-sm text-zinc-500 hover:underline disabled:opacity-50"
++                >
++                  Remove
++                </button>
++              </div>
++              <p className="text-sm text-zinc-500">
++                {exercise.general_part} / {exercise.body_part}
++              </p>
++            </li>
++          ))}
++        </ul>
++      )}
++    </>
++  );
++}
+diff --git a/frontend/lib/api.ts b/frontend/lib/api.ts
+index 546a7bb..d6125b2 100644
+--- a/frontend/lib/api.ts
++++ b/frontend/lib/api.ts
+@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
+ 
+ import { Exercise, ExerciseDetail } from "@/types/exercise";
+ import { ExerciseWithEffectiveness, Injury } from "@/types/injury";
++import { Program, ProgramDetail } from "@/types/program";
+ import { User } from "@/types/user";
+ 
+ // API_URL (server-only) wins when set -- that's the Docker-internal address.
+@@ -121,6 +122,35 @@ export async function getExercisesForInjury(
+   return res.json();
+ }
+ 
++export async function getPrograms(cookieHeader?: string): Promise<Program[]> {
++  const res = await fetch(`${API_URL}/programs`, {
++    cache: "no-store",
++    headers: authHeaders(cookieHeader),
++  });
++  redirectOnAuthError(res);
++  if (!res.ok) {
++    throw new Error(`Failed to fetch programs: ${res.status}`);
++  }
++  return res.json();
++}
++
++// Returns null for a 404 (not found, or exists but isn't yours -- the
++// backend deliberately can't tell you which) instead of throwing.
++export async function getProgram(programId: number, cookieHeader?: string): Promise<ProgramDetail | null> {
++  const res = await fetch(`${API_URL}/programs/${programId}`, {
++    cache: "no-store",
++    headers: authHeaders(cookieHeader),
++  });
++  redirectOnAuthError(res);
++  if (res.status === 404) {
++    return null;
++  }
++  if (!res.ok) {
++    throw new Error(`Failed to fetch program ${programId}: ${res.status}`);
++  }
++  return res.json();
++}
++
+ // --- Auth -- all of these must be called from the browser (a "use client"
+ // component), never a Server Component's fetch. The reason: the backend's
+ // Set-Cookie response header only reaches whoever actually made the HTTP
+@@ -241,3 +271,83 @@ export async function resendVerification(): Promise<void> {
+   }
+ }
+ 
++// No CSRF header on these two -- like signup/login, there's no session yet
++// at the point they're called, so there's nothing for a token to be tied to.
++export async function forgotPassword(email: string): Promise<void> {
++  const res = await fetch(`${API_URL}/auth/forgot-password`, {
++    method: "POST",
++    headers: { "Content-Type": "application/json" },
++    body: JSON.stringify({ email }),
++  });
++  if (!res.ok) {
++    throw new Error(await parseErrorDetail(res, `Failed to request password reset: ${res.status}`));
++  }
++}
++
++export async function resetPassword(token: string, newPassword: string): Promise<void> {
++  const res = await fetch(`${API_URL}/auth/reset-password`, {
++    method: "POST",
++    headers: { "Content-Type": "application/json" },
++    body: JSON.stringify({ token, new_password: newPassword }),
++  });
++  if (!res.ok) {
++    throw new Error(await parseErrorDetail(res, `Failed to reset password: ${res.status}`));
++  }
++}
++
++// --- Programs (mutating) -- same rule as the auth calls above: browser-side
++// only, credentials:"include" for the cookie plus csrfHeaders() for the
++// part a forged cross-site request can't replicate.
++
++export async function createProgram(name: string, injuryId?: number): Promise<Program> {
++  const res = await fetch(`${API_URL}/programs`, {
++    method: "POST",
++    credentials: "include",
++    headers: { "Content-Type": "application/json", ...csrfHeaders() },
++    body: JSON.stringify({ name, injury_id: injuryId ?? null }),
++  });
++  if (!res.ok) {
++    throw new Error(await parseErrorDetail(res, `Failed to create program: ${res.status}`));
++  }
++  return res.json();
++}
++
++export async function addExerciseToProgram(programId: number, exerciseId: number): Promise<ProgramDetail> {
++  const res = await fetch(`${API_URL}/programs/${programId}/exercises`, {
++    method: "POST",
++    credentials: "include",
++    headers: { "Content-Type": "application/json", ...csrfHeaders() },
++    body: JSON.stringify({ exercise_id: exerciseId }),
++  });
++  if (!res.ok) {
++    throw new Error(await parseErrorDetail(res, `Failed to add exercise: ${res.status}`));
++  }
++  return res.json();
++}
++
++export async function removeExerciseFromProgram(
++  programId: number,
++  exerciseId: number
++): Promise<ProgramDetail> {
++  const res = await fetch(`${API_URL}/programs/${programId}/exercises/${exerciseId}`, {
++    method: "DELETE",
++    credentials: "include",
++    headers: csrfHeaders(),
++  });
++  if (!res.ok) {
++    throw new Error(await parseErrorDetail(res, `Failed to remove exercise: ${res.status}`));
++  }
++  return res.json();
++}
++
++export async function deleteProgram(programId: number): Promise<void> {
++  const res = await fetch(`${API_URL}/programs/${programId}`, {
++    method: "DELETE",
++    credentials: "include",
++    headers: csrfHeaders(),
++  });
++  if (!res.ok) {
++    throw new Error(await parseErrorDetail(res, `Failed to delete program: ${res.status}`));
++  }
++}
++
+diff --git a/frontend/lib/validation.ts b/frontend/lib/validation.ts
+index ea1760b..9be8653 100644
+--- a/frontend/lib/validation.ts
++++ b/frontend/lib/validation.ts
+@@ -14,3 +14,10 @@ export const MAX_PASSWORD_LENGTH = 30;
+ export function isValidPasswordLength(password: string): boolean {
+   return password.length >= MIN_PASSWORD_LENGTH && password.length <= MAX_PASSWORD_LENGTH;
+ }
++
++export const MIN_PROGRAM_NAME_LENGTH = 4;
++export const MAX_PROGRAM_NAME_LENGTH = 25;
++
++export function isValidProgramName(name: string): boolean {
++  return name.length >= MIN_PROGRAM_NAME_LENGTH && name.length <= MAX_PROGRAM_NAME_LENGTH;
++}
+diff --git a/frontend/middleware.ts b/frontend/middleware.ts
+index 4cf16e6..50afde0 100644
+--- a/frontend/middleware.ts
++++ b/frontend/middleware.ts
+@@ -1,13 +1,15 @@
+ import { NextRequest, NextResponse } from "next/server";
+ 
+ // Pages reachable without being logged in. Everything else redirects to "/".
+-// /verify-email is public on purpose -- the link is opened from an email,
+-// possibly in a browser/device with no session cookie at all; the token
+-// itself (not a login) is what proves the request is legitimate.
++// /verify-email and /reset-password are public on purpose -- both links
++// are opened from an email, possibly in a browser/device with no session
++// cookie at all; the token itself (not a login) is what proves the
++// request is legitimate. /forgot-password is public since you're
++// requesting the email precisely because you can't log in right now.
+ // /verify (the "please check your inbox" page) is NOT public -- reaching
+ // it already implies a cookie exists (redirected there from a 403, or
+ // navigated to resend).
+-const PUBLIC_PATHS = ["/", "/login", "/signup", "/verify-email"];
++const PUBLIC_PATHS = ["/", "/login", "/signup", "/verify-email", "/forgot-password", "/reset-password"];
+ 
+ // Runs on the server before a matched page renders. This only checks
+ // whether the cookie exists -- it does NOT verify the JWT's signature or
+diff --git a/frontend/types/program.ts b/frontend/types/program.ts
+new file mode 100644
+index 0000000..76287c3
+--- /dev/null
++++ b/frontend/types/program.ts
+@@ -0,0 +1,20 @@
++import { Exercise } from "@/types/exercise";
++
++// Mirrors backend/app/schemas/program.py:ProgramRead
++export interface Program {
++  id: number;
++  name: string;
++  injury_id: number | null;
++  created_at: string;
++}
++
++// Mirrors backend/app/schemas/program.py:ProgramExerciseRead
++export interface ProgramExerciseEntry {
++  order_index: number;
++  exercise: Exercise;
++}
++
++// Mirrors backend/app/schemas/program.py:ProgramDetail
++export interface ProgramDetail extends Program {
++  exercises: ProgramExerciseEntry[];
++}

@@ -6,7 +6,7 @@ from app.core.deps import get_current_verified_user, require_csrf
 from app.models.user import User
 from app.schemas.exercise import ExerciseRead
 from app.schemas.program import AddExerciseRequest, ProgramCreate, ProgramDetail, ProgramRead
-from app.services import exercise_service, program_service
+from app.services import exercise_service, injury_service, program_service
 
 router = APIRouter(prefix="/programs", tags=["programs"])
 
@@ -41,6 +41,12 @@ def create_program(
     current_user: User = Depends(get_current_verified_user),
     _csrf_ok: None = Depends(require_csrf),
 ):
+    # Without this check, a bad injury_id wasn't caught anywhere -- it would
+    # reach the database and fail the FK constraint on commit, surfacing as
+    # an unhandled 500 instead of a clean 404. Same pattern add_exercise
+    # already uses to validate exercise_id before touching the DB.
+    if payload.injury_id is not None and injury_service.get_injury(db, payload.injury_id) is None:
+        raise HTTPException(status_code=404, detail="Injury not found")
     return program_service.create_program(db, current_user.id, payload.name, payload.injury_id)
 
 
@@ -71,11 +77,16 @@ def add_exercise(
     if exercise_service.get_exercise(db, payload.exercise_id) is None:
         raise HTTPException(status_code=404, detail="Exercise not found")
 
+    # Fast-path check for the common (non-racing) case -- gives a clean
+    # error without even attempting the insert. Not sufficient on its own:
+    # two near-simultaneous requests could both pass this before either
+    # commits, so add_exercise() below is the actual race-safe guarantee.
     already_in = any(link.exercise_id == payload.exercise_id for link in program.exercise_links)
     if already_in:
         raise HTTPException(status_code=409, detail="Exercise already in this program")
 
-    program_service.add_exercise(db, program, payload.exercise_id)
+    if program_service.add_exercise(db, program, payload.exercise_id) is None:
+        raise HTTPException(status_code=409, detail="Exercise already in this program")
     db.refresh(program)
     return _to_detail(program)
 

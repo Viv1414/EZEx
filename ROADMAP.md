@@ -30,11 +30,11 @@ Items are ✅ once built; everything else below is still not built.
   (ProgramDetailView.tsx handles remove-exercise/delete-program),
   "Add to program" button on the exercise page. Verified end to end
   through the real pages, not just the API.
-- ⚠️ Minor, low priority: User has no cascade delete toward
-  EmailVerificationToken or Program (hit the FK violation manually
-  cleaning up test accounts three times now). Only matters once an actual
-  "delete my account" feature exists (not built/planned yet) or for
-  manual dev cleanup -- not worth a migration just for that today.
+- ✅ Fixed (2026-09-01, from REPORT1_RESULTS.md #6): added `ondelete="CASCADE"`
+  at the DB level on all 4 affected FKs (EmailVerificationToken.user_id,
+  PasswordResetToken.user_id, Program.user_id, ProgramExercise.program_id).
+  Deleting a user in one statement now cleanly cascades through all of it,
+  verified with zero orphaned rows left anywhere.
 
 
 ## Auth follow-ups (not built yet)
