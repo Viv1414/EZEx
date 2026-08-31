@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 
 // Pages reachable without being logged in. Everything else redirects to "/".
-// /verify-email is public on purpose -- the link is opened from an email,
-// possibly in a browser/device with no session cookie at all; the token
-// itself (not a login) is what proves the request is legitimate.
+// /verify-email and /reset-password are public on purpose -- both links
+// are opened from an email, possibly in a browser/device with no session
+// cookie at all; the token itself (not a login) is what proves the
+// request is legitimate. /forgot-password is public since you're
+// requesting the email precisely because you can't log in right now.
 // /verify (the "please check your inbox" page) is NOT public -- reaching
 // it already implies a cookie exists (redirected there from a 403, or
 // navigated to resend).
-const PUBLIC_PATHS = ["/", "/login", "/signup", "/verify-email"];
+const PUBLIC_PATHS = ["/", "/login", "/signup", "/verify-email", "/forgot-password", "/reset-password"];
 
 // Runs on the server before a matched page renders. This only checks
 // whether the cookie exists -- it does NOT verify the JWT's signature or

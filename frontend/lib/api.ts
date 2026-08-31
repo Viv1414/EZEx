@@ -271,6 +271,30 @@ export async function resendVerification(): Promise<void> {
   }
 }
 
+// No CSRF header on these two -- like signup/login, there's no session yet
+// at the point they're called, so there's nothing for a token to be tied to.
+export async function forgotPassword(email: string): Promise<void> {
+  const res = await fetch(`${API_URL}/auth/forgot-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) {
+    throw new Error(await parseErrorDetail(res, `Failed to request password reset: ${res.status}`));
+  }
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
+  const res = await fetch(`${API_URL}/auth/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, new_password: newPassword }),
+  });
+  if (!res.ok) {
+    throw new Error(await parseErrorDetail(res, `Failed to reset password: ${res.status}`));
+  }
+}
+
 // --- Programs (mutating) -- same rule as the auth calls above: browser-side
 // only, credentials:"include" for the cookie plus csrfHeaders() for the
 // part a forged cross-site request can't replicate.

@@ -1,11 +1,18 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+# Was previously only enforced client-side (frontend/lib/validation.ts) --
+# a direct API call could set a password outside this range. Same bounds,
+# now also checked server-side, which is the copy that actually matters.
+MIN_PASSWORD_LENGTH = 8
+MAX_PASSWORD_LENGTH = 30
 
 
 class UserCreate(BaseModel):
     email: EmailStr
-    password: str  # plain text, only ever in the incoming request -- never stored or returned
+    # plain text, only ever in the incoming request -- never stored or returned
+    password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=MAX_PASSWORD_LENGTH)
 
 
 class UserLogin(BaseModel):
@@ -32,3 +39,12 @@ class UserWithCsrf(UserRead):
     back a token tied to one."""
 
     csrf_token: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=MAX_PASSWORD_LENGTH)

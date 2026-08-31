@@ -3,6 +3,11 @@
 import { useState } from "react";
 
 import { createProgram } from "@/lib/api";
+import {
+  isValidProgramName,
+  MAX_PROGRAM_NAME_LENGTH,
+  MIN_PROGRAM_NAME_LENGTH,
+} from "@/lib/validation";
 import { Injury } from "@/types/injury";
 
 export default function NewProgramForm({ injuries }: { injuries: Injury[] }) {
@@ -15,8 +20,10 @@ export default function NewProgramForm({ injuries }: { injuries: Injury[] }) {
     e.preventDefault();
     setError(null);
 
-    if (!name.trim()) {
-      setError("Please enter a name for your program.");
+    if (!isValidProgramName(name.trim())) {
+      setError(
+        `Program name must be between ${MIN_PROGRAM_NAME_LENGTH}-${MAX_PROGRAM_NAME_LENGTH} characters long.`
+      );
       return;
     }
 
@@ -35,6 +42,7 @@ export default function NewProgramForm({ injuries }: { injuries: Injury[] }) {
       <input
         type="text"
         required
+        maxLength={MAX_PROGRAM_NAME_LENGTH}
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Program name"

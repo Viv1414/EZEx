@@ -84,6 +84,11 @@ export default function LoginPage() {
           Sign up
         </a>
       </p>
+      <p className="mt-2 text-sm text-zinc-500">
+        <a href="/forgot-password" className="text-zinc-700 hover:underline dark:text-zinc-300">
+          Forgot password?
+        </a>
+      </p>
     </main>
   );
 }

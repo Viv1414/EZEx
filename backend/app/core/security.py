@@ -32,30 +32,34 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 class TokenPayload:
     user_id: int
     jti: str  # "JWT ID" -- a unique id for this specific token, so logout can revoke this one issuance only
+    issued_at: datetime
     expires_at: datetime
 
 
 def create_access_token(user_id: int) -> str:
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
-    # "sub"/"jti"/"exp" are standard JWT claim names -- jwt.decode checks
-    # "exp" against the current time automatically. "jti" is what makes
-    # revocation possible: without it, every token from this user would
-    # look identical, and logout could only revoke ALL of a user's
-    # sessions at once instead of just the one being logged out of.
-    payload = {"sub": str(user_id), "jti": uuid4().hex, "exp": expires_at}
+    issued_at = datetime.now(timezone.utc)
+    expires_at = issued_at + timedelta(minutes=settings.access_token_expire_minutes)
+    # "sub"/"jti"/"iat"/"exp" are standard JWT claim names -- jwt.decode
+    # checks "exp" against the current time automatically. "jti" is what
+    # makes single-session revocation possible (logout); "iat" is what
+    # lets a password reset invalidate every session at once (see
+    # get_current_user's password_changed_at check) without needing to
+    # know or revoke each session's jti individually.
+    payload = {"sub": str(user_id), "jti": uuid4().hex, "iat": issued_at, "exp": expires_at}
     return jwt.encode(payload, settings.secret_key, algorithm=JWT_ALGORITHM)
 
 
 def decode_access_token(token: str) -> TokenPayload | None:
     """Returns the token's payload, or None if the token is missing,
     expired, malformed, or has been tampered with (bad signature).
-    Does NOT check revocation -- that's a separate DB lookup, done by
-    whoever calls this (get_current_user, logout)."""
+    Does NOT check revocation or password_changed_at -- those are separate
+    checks, done by whoever calls this (get_current_user, logout)."""
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[JWT_ALGORITHM])
         return TokenPayload(
             user_id=int(payload["sub"]),
             jti=payload["jti"],
+            issued_at=datetime.fromtimestamp(payload["iat"], tz=timezone.utc),
             expires_at=datetime.fromtimestamp(payload["exp"], tz=timezone.utc),
         )
     except (jwt.PyJWTError, KeyError, ValueError):

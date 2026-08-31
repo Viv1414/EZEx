@@ -1,12 +1,15 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.exercise import ExerciseRead
 
+MIN_PROGRAM_NAME_LENGTH = 4
+MAX_PROGRAM_NAME_LENGTH = 25
+
 
 class ProgramCreate(BaseModel):
-    name: str
+    name: str = Field(min_length=MIN_PROGRAM_NAME_LENGTH, max_length=MAX_PROGRAM_NAME_LENGTH)
     injury_id: int | None = None  # if given, bulk-adds that injury's exercises, ranked by effectiveness
 
 

@@ -14,8 +14,15 @@ from app.core.security import (
     verify_password,
 )
 from app.models.user import User
-from app.schemas.user import UserCreate, UserLogin, UserRead, UserWithCsrf
-from app.services import email_verification_service, token_service, user_service
+from app.schemas.user import (
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
+    UserCreate,
+    UserLogin,
+    UserRead,
+    UserWithCsrf,
+)
+from app.services import email_verification_service, password_reset_service, token_service, user_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -117,3 +124,25 @@ def resend_verification(
     if not email_verification_service.send_verification_email(db, current_user):
         raise HTTPException(status_code=502, detail="Failed to send verification email, please try again later")
     return {"detail": "Verification email sent"}
+
+
+@router.post("/forgot-password")
+@limiter.limit("5/minute")
+def forgot_password(request: Request, payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    user = user_service.get_user_by_email(db, payload.email)
+    # Always the same response whether or not that email is registered --
+    # same user-enumeration protection as login's shared error message.
+    # Sending is best-effort: a real SMTP failure here shouldn't reveal
+    # anything different to the caller than "that email doesn't exist" would.
+    if user is not None:
+        password_reset_service.send_reset_email(db, user)
+    return {"detail": "If that email is registered, a reset link has been sent."}
+
+
+@router.post("/reset-password")
+@limiter.limit("5/minute")
+def reset_password(request: Request, payload: ResetPasswordRequest, db: Session = Depends(get_db)):
+    user = password_reset_service.reset_password(db, payload.token, payload.new_password)
+    if user is None:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset link")
+    return {"detail": "Password reset. You can now log in with your new password."}

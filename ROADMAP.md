@@ -62,7 +62,23 @@ Items are ✅ once built; everything else below is still not built.
   is_verified=false and will be blocked until they verify or someone
   flips that column manually -- includes the vivaan@example.com test
   account used earlier in this session.
-- Password reset -- not built
+- ✅ Password reset (2026-08-31): PasswordResetToken (same single-use
+  shape as EmailVerificationToken). POST /auth/forgot-password (generic
+  response either way -- same user-enumeration protection as login) and
+  POST /auth/reset-password. Resetting stamps User.password_changed_at;
+  get_current_user now rejects any token *issued* before that moment
+  (new "iat" JWT claim), which invalidates every existing session at
+  once, not just the one used to reset -- verified: a session that was
+  working seconds earlier returns 401 immediately after reset, with no
+  logout call involved. Also fixed while in here: password length
+  (8-30) is now enforced server-side on signup too (UserCreate.password
+  Field constraint) -- previously only checked client-side, so a direct
+  API call could set a password outside that range.
+  Frontend: /forgot-password, /reset-password (both public in
+  middleware.ts, same reasoning as /verify-email -- opened from an
+  email, possibly with no session in that browser at all), "Forgot
+  password?" link on /login. Verified end to end including a real
+  email through Brevo.
 - ✅ Frontend signup/login forms (first real Client Components in the app)
 - ✅ Site gated behind login (frontend/middleware.ts): "/" is now a public
   placeholder landing page, everything else (including /dashboard) redirects

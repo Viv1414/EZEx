@@ -36,6 +36,12 @@ def get_current_user(
     if user is None:
         raise HTTPException(status_code=401, detail="Invalid or expired session")
 
+    # A password reset invalidates every session at once, not just future
+    # ones -- any token issued before the (re)set is now too old, even if
+    # its own signature/expiry/revocation status all check out individually.
+    if user.password_changed_at is not None and token_payload.issued_at < user.password_changed_at:
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+
     return user
 
 
